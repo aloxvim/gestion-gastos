@@ -168,17 +168,42 @@ async def new_movement_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     api = session_manager.get_api_client(user_id)
     file_path = None
-    
-    # Verificar si hay archivo
+
     if update.message.document:
-        file = await update.message.document.get_file()
-        file_path = f'/tmp/telegram_bot_{user_id}_{file.file_id}'
+        doc = update.message.document
+        file = await doc.get_file()
+
+        # Obtener extensión del nombre original que envió el usuario
+        original_name = doc.file_name or ''
+        extension = os.path.splitext(original_name)[1].lower()
+
+        # Si no viene nombre o extensión, deducir por mime_type
+        if not extension:
+            mime_to_ext = {
+                'application/pdf': '.pdf',
+                'image/jpeg': '.jpg',
+                'image/png': '.png',
+                'image/gif': '.gif',
+                'image/webp': '.webp',
+            }
+            extension = mime_to_ext.get(doc.mime_type, '')
+
+        allowed_extensions = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp']
+        if extension not in allowed_extensions:
+            await update.message.reply_text(
+                "❌ Tipo de archivo no soportado. Solo se permiten PDF e imágenes "
+                "(JPG, PNG, GIF, WEBP).\n\nUsa /nuevo para intentar de nuevo."
+            )
+            return ConversationHandler.END
+
+        file_path = f'/tmp/telegram_bot_{user_id}_{file.file_id}{extension}'
         await file.download_to_drive(file_path)
+
     elif update.message.photo:
         file = await update.message.photo[-1].get_file()
         file_path = f'/tmp/telegram_bot_{user_id}_{file.file_id}.jpg'
         await file.download_to_drive(file_path)
-    
+
     # Crear movimiento
     try:
         data = {

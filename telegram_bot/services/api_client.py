@@ -44,8 +44,18 @@ class APIClient:
             if response.status_code == 401:
                 raise Exception("Sesión expirada o inválida")
             
-            response.raise_for_status()
-            return response.json()
+            if not response.ok:
+                try:
+                    error_data = response.json()
+                    message = error_data.get('message', f'Error {response.status_code}')
+                except ValueError:
+                    message = f'Error {response.status_code}'
+                raise Exception(message)
+            
+            try:
+                return response.json()
+            except ValueError:
+                raise Exception(f"Respuesta no válida del servidor: {response.text[:200]}")
         
         except requests.exceptions.RequestException as e:
             raise Exception(f"Error de conexión: {str(e)}")

@@ -1,4 +1,5 @@
 <?php
+ob_start();
 
 // Headers CORS - APLICAR ANTES DE CUALQUIER COSA
 header('Access-Control-Allow-Origin: http://localhost:3000');

@@ -99,8 +99,11 @@ function redirect($url)
 /**
  * Devuelve una respuesta JSON
  */
-function jsonResponse($data, $statusCode = 200)
-{
+function jsonResponse($data, $statusCode = 200) {
+    // Limpiar cualquier output previo (warnings, notices, etc.) que pueda haber ensuciado el buffer
+    if (ob_get_length()) {
+        ob_clean();
+    }
     http_response_code($statusCode);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($data, JSON_UNESCAPED_UNICODE);

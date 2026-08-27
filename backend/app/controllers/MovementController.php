@@ -245,6 +245,13 @@ class MovementController
                 jsonError("No hay datos para actualizar", 400);
             }
 
+            // Si se está cambiando la cuenta, verificar que la nueva pertenezca al usuario
+            if (isset($updateData['id_cuenta'])) {
+                if (!$this->cuentaModel->belongsToUser($updateData['id_cuenta'], $userId)) {
+                    jsonError("No tienes permiso para mover el movimiento a esa cuenta", 403);
+                }
+            }
+
             $this->movimientoModel->update($movimientoId, $updateData);
 
             jsonSuccess("Movimiento actualizado exitosamente");

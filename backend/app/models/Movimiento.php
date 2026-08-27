@@ -228,7 +228,7 @@ class Movimiento
     /**
      * Actualiza un movimiento
      */
-    public function update($id, $data)
+    /* public function update($id, $data)
     {
         $movimiento = $this->findById($id);
 
@@ -237,7 +237,7 @@ class Movimiento
         }
 
         // No permitir cambiar la cuenta
-        unset($data['id_cuenta']);
+        //unset($data['id_cuenta']);
 
         // Manejar archivo adjunto si existe
         if (isset($data['archivo']) && !empty($data['archivo'])) {
@@ -253,6 +253,37 @@ class Movimiento
 
         if ($updated) {
             $cuenta = (new Cuenta())->findById($movimiento['id_cuenta']);
+            logAction(
+                $cuenta['id_usuario'],
+                "ha modificado un movimiento en la cuenta '{$cuenta['nombre']}'"
+            );
+        }
+
+        return $updated;
+    } */
+
+    public function update($id, $data)
+    {
+        $movimiento = $this->findById($id);
+
+        if (!$movimiento) {
+            throw new Exception("Movimiento no encontrado");
+        }
+
+        // Manejar archivo adjunto si existe
+        if (isset($data['archivo']) && !empty($data['archivo'])) {
+            // Eliminar archivo anterior si existe
+            if ($movimiento['adjunto']) {
+                $this->deleteFile($movimiento['adjunto']);
+            }
+            $data['adjunto'] = $this->uploadFile($data['archivo']);
+            unset($data['archivo']);
+        }
+
+        $updated = $this->db->update('movimientos', $data, 'id = :id', ['id' => $id]);
+
+        if ($updated) {
+            $cuenta = (new Cuenta())->findById($data['id_cuenta'] ?? $movimiento['id_cuenta']);
             logAction(
                 $cuenta['id_usuario'],
                 "ha modificado un movimiento en la cuenta '{$cuenta['nombre']}'"

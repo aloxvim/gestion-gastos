@@ -108,13 +108,16 @@ CREATE TABLE IF NOT EXISTS movimientos (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabla de Movimientos de página (auditoría)
+-- id_usuario permite NULL y usa ON DELETE SET NULL para conservar el historial
+-- aunque el usuario sea eliminado (requisito: el historial no se puede borrar ni modificar)
 CREATE TABLE IF NOT EXISTS movimientos_pagina (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    id_usuario INT NOT NULL,
+    id_usuario INT DEFAULT NULL,
+    nombre_usuario VARCHAR(50) NOT NULL, -- nombre guardado en el momento del hecho, sobrevive al borrado del usuario
     accion TEXT NOT NULL, -- "ha hecho" - descripción de la acción
     fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     ip VARCHAR(45) DEFAULT NULL, -- Soporte para IPv4 e IPv6
-    FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE SET NULL,
     INDEX idx_usuario (id_usuario),
     INDEX idx_fecha (fecha)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

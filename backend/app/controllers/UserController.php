@@ -374,6 +374,9 @@ class UserController
                 jsonError("Las confirmaciones deben ser exactamente 'ELIMINAR'", 400);
             }
 
+            // Registrar el borrado ANTES de eliminar, para que logAction pueda capturar el nombre
+            logAction($userId, "ha eliminado su cuenta");
+
             // Eliminar usuario (cascada eliminará todo)
             $this->usuarioModel->delete($userId);
 
@@ -383,7 +386,6 @@ class UserController
             jsonError($e->getMessage(), 400);
         }
     }
-
     /**
      * Obtener sesiones activas
      */

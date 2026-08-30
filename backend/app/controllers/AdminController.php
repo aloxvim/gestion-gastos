@@ -141,9 +141,11 @@ class AdminController
                 jsonError("No tienes permisos para eliminar este usuario", 403);
             }
 
-            $this->usuarioModel->delete($data['user_id']);
-
+            // Registrar ambos lados ANTES de eliminar, para que logAction capture los nombres correctos
             logAction($currentUserId, "ha eliminado al usuario '{$targetUser['nombre_usuario']}'");
+            logAction($data['user_id'], "su cuenta ha sido eliminada por el administrador '{$currentUser['nombre_usuario']}'");
+
+            $this->usuarioModel->delete($data['user_id']);
 
             jsonSuccess("Usuario eliminado exitosamente");
 

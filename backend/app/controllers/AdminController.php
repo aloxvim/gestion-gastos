@@ -268,11 +268,11 @@ class AdminController
             $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 100;
             $offset = isset($_GET['offset']) ? intval($_GET['offset']) : 0;
 
-            $sql = "SELECT mp.*, u.nombre_usuario 
-                    FROM movimientos_pagina mp 
-                    INNER JOIN usuarios u ON mp.id_usuario = u.id 
-                    ORDER BY mp.fecha DESC 
-                    LIMIT :limit OFFSET :offset";
+            $sql = "SELECT mp.*, COALESCE(u.nombre_usuario, mp.nombre_usuario) as nombre_usuario 
+                FROM movimientos_pagina mp 
+                LEFT JOIN usuarios u ON mp.id_usuario = u.id 
+                ORDER BY mp.fecha DESC 
+                LIMIT :limit OFFSET :offset";
 
             $logs = $this->db->fetchAll($sql, [
                 'limit' => $limit,

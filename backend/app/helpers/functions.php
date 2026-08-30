@@ -99,7 +99,8 @@ function redirect($url)
 /**
  * Devuelve una respuesta JSON
  */
-function jsonResponse($data, $statusCode = 200) {
+function jsonResponse($data, $statusCode = 200)
+{
     // Limpiar cualquier output previo (warnings, notices, etc.) que pueda haber ensuciado el buffer
     if (ob_get_length()) {
         ob_clean();
@@ -270,11 +271,16 @@ function logAction($idUsuario, $accion)
         $ip = getClientIP();
         $fecha = date('Y-m-d H:i:s'); // Usar la zona horaria de PHP (Europe/Madrid)
 
+        // Obtener el nombre de usuario actual para dejarlo fijado en el log
+        $usuario = $db->fetchOne("SELECT nombre_usuario FROM usuarios WHERE id = :id", ['id' => $idUsuario]);
+        $nombreUsuario = $usuario['nombre_usuario'] ?? 'Usuario desconocido';
+
         $db->insert('movimientos_pagina', [
             'id_usuario' => $idUsuario,
+            'nombre_usuario' => $nombreUsuario,
             'accion' => $accion,
             'ip' => $ip,
-            'fecha' => $fecha  
+            'fecha' => $fecha
         ]);
         return true;
     } catch (Exception $e) {

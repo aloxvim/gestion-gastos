@@ -174,7 +174,7 @@ export const LandingPage = () => {
           <p>© 2025 Gestión de Gastos. Proyecto open source. Creado con Claude AI 4.5</p>
           <div className="mt-4">
             <a
-              href="https://github.com"
+              href={import.meta.env.VITE_GITHUB_REPO_URL || 'https://github.com'}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700"

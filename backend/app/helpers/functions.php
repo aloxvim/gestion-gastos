@@ -6,10 +6,12 @@
 
 /**
  * Sanitiza una cadena de texto
+ * Elimina etiquetas HTML pero NO convierte comillas a entidades,
+ * ya que React escapa automáticamente el contenido al renderizarlo
  */
 function sanitize($data)
 {
-    return htmlspecialchars(strip_tags(trim($data)), ENT_QUOTES, 'UTF-8');
+    return trim(strip_tags($data));
 }
 
 /**

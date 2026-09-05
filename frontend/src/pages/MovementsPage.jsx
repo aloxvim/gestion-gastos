@@ -416,7 +416,7 @@ export const MovementsPage = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
-                        <div className="max-w-xs truncate">
+                        <div className="max-w-xs truncate" title={movement.notas || ''}>
                           {movement.notas || '-'}
                         </div>
                         {movement.adjunto && (

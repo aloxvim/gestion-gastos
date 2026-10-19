@@ -29,8 +29,8 @@ export const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
         className="absolute inset-0 bg-black bg-opacity-50"
         onClick={onClose}
       ></div>
-      <div className={`relative bg-white rounded-xl shadow-xl ${sizes[size]} w-full max-h-[90vh] overflow-y-auto fade-in`}>
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      <div className={`relative bg-surface rounded-xl shadow-xl ${sizes[size]} w-full max-h-[90vh] overflow-y-auto fade-in`}>
+        <div className="sticky top-0 bg-surface border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
           <button
             onClick={onClose}

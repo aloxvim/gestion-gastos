@@ -16,8 +16,55 @@ import {
   Trash2,
   Key,
   LogOut,
+  Palette,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useTheme } from '../contexts/ThemeContext';
+
+// Appearance Tab (tema claro / oscuro / sistema)
+const AppearanceTab = () => {
+  const { theme, setTheme } = useTheme();
+
+  const options = [
+    { id: 'light', name: 'Claro', description: 'Fondo claro en toda la aplicación', icon: Sun },
+    { id: 'dark', name: 'Oscuro', description: 'Fondo oscuro, más cómodo con poca luz', icon: Moon },
+    { id: 'system', name: 'Sistema', description: 'Sigue la configuración de tu dispositivo', icon: Monitor },
+  ];
+
+  return (
+    <Card>
+      <h2 className="text-xl font-semibold text-gray-900 mb-1">Tema</h2>
+      <p className="text-sm text-gray-600 mb-4">
+        Elige cómo se ve la aplicación. La preferencia se guarda en este navegador.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4" role="radiogroup" aria-label="Tema">
+        {options.map((option) => {
+          const selected = theme === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => setTheme(option.id)}
+              className={`flex flex-col items-start gap-2 p-4 rounded-lg border-2 text-left transition-colors ${selected
+                ? 'border-primary-500 bg-primary-50'
+                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                }`}
+            >
+              <option.icon size={24} className={selected ? 'text-primary-600' : 'text-gray-500'} />
+              <span className="font-medium text-gray-900">{option.name}</span>
+              <span className="text-sm text-gray-600">{option.description}</span>
+            </button>
+          );
+        })}
+      </div>
+    </Card>
+  );
+};
 
 // Role Request Tab (para usuarios que quieren ser admin)
 const RoleRequestTab = ({ user }) => {
@@ -121,6 +168,7 @@ export const SettingsPage = () => {
     { id: 'profile', name: 'Perfil', icon: User },
     { id: 'security', name: 'Seguridad', icon: Shield },
     { id: 'api', name: 'API Tokens', icon: Key },
+    { id: 'appearance', name: 'Apariencia', icon: Palette },
     ...(user?.rol === 'usuario' || user?.rol === 'solicita' ? [{ id: 'role', name: 'Rol', icon: Shield }] : []),
     ...(user?.rol !== 'propietario' ? [{ id: 'danger', name: 'Zona de Peligro', icon: Trash2 }] : []),
   ];
@@ -157,6 +205,7 @@ export const SettingsPage = () => {
       {activeTab === 'profile' && <ProfileTab user={user} updateUser={updateUser} />}
       {activeTab === 'security' && <SecurityTab user={user} updateUser={updateUser} />}
       {activeTab === 'api' && <APITokensTab />}
+      {activeTab === 'appearance' && <AppearanceTab />}
       {activeTab === 'role' && <RoleRequestTab user={user} />}
       {activeTab === 'danger' && (
         <DangerZoneTab
@@ -244,7 +293,7 @@ const ProfileTab = ({ user, updateUser }) => {
             )}
             <label
               htmlFor="photo-upload"
-              className="absolute bottom-0 right-0 p-1.5 bg-white rounded-full border-2 border-white shadow-lg cursor-pointer hover:bg-gray-50"
+              className="absolute bottom-0 right-0 p-1.5 bg-surface rounded-full border-2 border-surface shadow-lg cursor-pointer hover:bg-gray-50"
             >
               <Camera size={16} className="text-gray-600" />
             </label>
@@ -516,7 +565,7 @@ const APITokensTab = () => {
             <p className="text-sm font-medium text-green-900 mb-2">
               ✅ Token generado. Guárdalo en un lugar seguro:
             </p>
-            <code className="block p-3 bg-white rounded border border-green-300 text-sm break-all">
+            <code className="block p-3 bg-surface rounded border border-green-300 text-sm break-all">
               {generatedToken}
             </code>
             <p className="text-xs text-green-800 mt-2">

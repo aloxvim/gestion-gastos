@@ -34,7 +34,7 @@ export const LandingPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-surface">
       {/* Header */}
       <header className="border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -66,7 +66,7 @@ export const LandingPage = () => {
         <div className="max-w-7xl mx-auto text-center">
           <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
             Controla tus finanzas
-            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-secondary-600">
+            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-secondary-600 dark:from-primary-400 dark:to-secondary-400">
               de forma inteligente
             </span>
           </h1>
@@ -104,7 +104,7 @@ export const LandingPage = () => {
             {features.map((feature, index) => (
               <div
                 key={index}
-                className="bg-white p-6 rounded-xl shadow-soft hover:shadow-lg transition-shadow"
+                className="bg-surface p-6 rounded-xl shadow-soft hover:shadow-lg transition-shadow"
               >
                 <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center mb-4">
                   <feature.icon className="w-6 h-6 text-primary-600" />
@@ -152,16 +152,16 @@ export const LandingPage = () => {
       </section>
 
       {/* CTA */}
-      <section className="py-20 bg-gradient-to-br from-primary-600 to-secondary-600 px-4">
+      <section className="py-20 bg-hero px-4">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl font-bold text-white mb-6">
             ¿Listo para tomar el control?
           </h2>
-          <p className="text-xl text-primary-100 mb-8">
+          <p className="text-xl text-white/80 mb-8">
             Únete a cientos de usuarios que ya están gestionando sus finanzas de forma inteligente.
           </p>
           <Link to="/register">
-            <button className="bg-white text-primary-600 hover:bg-gray-100 px-8 py-3 rounded-lg font-semibold text-lg transition-colors">
+            <button className="bg-white text-[#5568d3] hover:bg-[#f3f4f6] dark:bg-primary-500 dark:text-white dark:hover:bg-primary-400 px-8 py-3 rounded-lg font-semibold text-lg transition-colors">
               Crear cuenta gratuita
             </button>
           </Link>

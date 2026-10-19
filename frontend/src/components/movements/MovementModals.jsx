@@ -209,7 +209,7 @@ export const MovementModal = ({ isOpen, onClose, onSuccess, accounts, movement =
             />
             <label
               htmlFor="file-upload"
-              className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-surface hover:bg-gray-50"
             >
               <Paperclip size={18} />
               {isEdit && currentAttachment ? 'Reemplazar archivo' : 'Seleccionar archivo'}

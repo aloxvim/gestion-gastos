@@ -44,7 +44,7 @@ export const ResetPasswordPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-600 to-secondary-600 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-hero flex items-center justify-center p-4">
       <Card className="max-w-md w-full">
         <h2 className="text-2xl font-bold text-gray-900 text-center mb-6">
           Nueva contraseña

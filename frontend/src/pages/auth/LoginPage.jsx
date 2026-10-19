@@ -55,8 +55,8 @@ export const LoginPage = () => {
 
   if (show2FA) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-600 to-secondary-600 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md fade-in">
+      <div className="min-h-screen bg-hero flex items-center justify-center p-4">
+        <div className="bg-surface rounded-2xl shadow-xl dark:ring-1 dark:ring-white/10 p-8 w-full max-w-md fade-in">
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-100 rounded-full mb-4">
               <Lock className="w-8 h-8 text-primary-600" />
@@ -104,8 +104,8 @@ export const LoginPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-600 to-secondary-600 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md fade-in">
+    <div className="min-h-screen bg-hero flex items-center justify-center p-4">
+      <div className="bg-surface rounded-2xl shadow-xl dark:ring-1 dark:ring-white/10 p-8 w-full max-w-md fade-in">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-600 to-secondary-600 rounded-2xl mb-4">
             <span className="text-white font-bold text-2xl">G</span>

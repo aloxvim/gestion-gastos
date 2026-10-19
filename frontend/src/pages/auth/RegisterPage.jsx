@@ -76,8 +76,8 @@ export const RegisterPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-600 to-secondary-600 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md fade-in">
+    <div className="min-h-screen bg-hero flex items-center justify-center p-4">
+      <div className="bg-surface rounded-2xl shadow-xl dark:ring-1 dark:ring-white/10 p-8 w-full max-w-md fade-in">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-gray-900">Crear Cuenta</h2>
           <p className="text-gray-600 mt-2">Comienza a gestionar tus finanzas</p>

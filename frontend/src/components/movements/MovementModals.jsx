@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 // ============================================
 // MovementModal Component
 // ============================================
-export const MovementModal = ({ isOpen, onClose, onSuccess, accounts, movement = null }) => {
+export const MovementModal = ({ isOpen, onClose, onSuccess, accounts, movement = null, defaultType = 'ingreso' }) => {
   const isEdit = !!movement;
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -38,7 +38,7 @@ export const MovementModal = ({ isOpen, onClose, onSuccess, accounts, movement =
       setCurrentAttachment(movement.adjunto || null);
     } else {
       setFormData({
-        tipo: 'ingreso',
+        tipo: defaultType,
         id_cuenta: accounts[0]?.id || '',
         cantidad: '',
         notas: '',
@@ -48,7 +48,7 @@ export const MovementModal = ({ isOpen, onClose, onSuccess, accounts, movement =
       setCurrentAttachment(null);
       setFile(null);
     }
-  }, [movement, accounts, isOpen]);
+  }, [movement, accounts, isOpen, defaultType]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

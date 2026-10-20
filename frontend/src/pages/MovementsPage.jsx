@@ -47,6 +47,7 @@ export const MovementsPage = () => {
   const [movements, setMovements] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createType, setCreateType] = useState('ingreso');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -67,12 +68,18 @@ export const MovementsPage = () => {
   });
   const isInitialLoadRef = useRef(true);
 
+  // Abre el modal de creación con el tipo preseleccionado ('ingreso' o 'retirada')
+  const openCreateModal = (type = 'ingreso') => {
+    setCreateType(type);
+    setIsCreateModalOpen(true);
+  };
+
   useEffect(() => {
     loadData();
     const action = searchParams.get('action');
     const type = searchParams.get('type');
     if (action === 'create') {
-      setIsCreateModalOpen(true);
+      openCreateModal(type === 'retirada' ? 'retirada' : 'ingreso');
     }
     isInitialLoadRef.current = false;
   }, [searchParams]);
@@ -239,7 +246,7 @@ export const MovementsPage = () => {
             <Upload size={20} />
             Importar
           </Button>
-          <Button onClick={() => setIsCreateModalOpen(true)}>
+          <Button onClick={() => openCreateModal()}>
             <Plus size={20} />
             Nuevo
           </Button>
@@ -338,7 +345,7 @@ export const MovementsPage = () => {
           title="No hay movimientos"
           description="Registra tu primer ingreso o gasto para comenzar"
           action={
-            <Button onClick={() => setIsCreateModalOpen(true)}>
+            <Button onClick={() => openCreateModal()}>
               <Plus size={20} />
               Crear movimiento
             </Button>
@@ -499,6 +506,7 @@ export const MovementsPage = () => {
       {/* Modals */}
       <MovementModal
         isOpen={isCreateModalOpen}
+        defaultType={createType}
         onClose={() => setIsCreateModalOpen(false)}
         onSuccess={() => {
           setIsCreateModalOpen(false);

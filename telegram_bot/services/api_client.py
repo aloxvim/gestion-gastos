@@ -139,7 +139,16 @@ class APIClient:
             headers = {k: v for k, v in self.headers.items()}
             return self._request('POST', '/movements', data=data, headers=headers)
     
-    def update_movement(self, movement_id: int, data: Dict[str, Any], 
+    def create_transfer(self, data: Dict[str, Any], file_path: Optional[str] = None) -> Dict[str, Any]:
+        """Mueve dinero entre dos cuentas (id_cuenta_origen, id_cuenta_destino, cantidad, notas,
+        fecha_movimiento), con un adjunto opcional"""
+        if file_path:
+            with open(file_path, 'rb') as f:
+                files = {'adjunto': (file_path.split('/')[-1], f)}
+                return self._request('POST', '/movements/transfer', data=data, files=files)
+        return self._request('POST', '/movements/transfer', data=data)
+
+    def update_movement(self, movement_id: int, data: Dict[str, Any],
                        file_path: Optional[str] = None) -> Dict[str, Any]:
         """Actualiza un movimiento"""
         if file_path:

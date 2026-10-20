@@ -186,6 +186,13 @@ $router->get('/movements', function () {
     $controller->getAll($userId);
 }, [AuthMiddleware::class]);
 
+// Mover dinero entre cuentas propias
+$router->post('/movements/transfer', function () {
+    $userId = $GLOBALS['current_user']['id'];
+    $controller = new MovementController();
+    $controller->createTransfer($userId);
+}, [AuthMiddleware::class]);
+
 $router->get('/movements/stats', function () {
     $userId = $GLOBALS['current_user']['id'];
     $controller = new MovementController();

@@ -22,6 +22,7 @@ Comandos disponibles:
 /cuentas - Listar tus cuentas
 /movimientos - Ver últimos movimientos
 /nuevo - Registrar nuevo movimiento
+/mover - Mover dinero entre tus cuentas
 /ayuda - Ver todos los comandos
 /logout - Cerrar sesión
 
@@ -42,6 +43,7 @@ Usa /login para comenzar.
 
 ✏️ Acciones:
 /nuevo - Crear movimiento
+/mover - Mover dinero entre tus cuentas
 /editar [id] - Editar movimiento
 /eliminar [id] - Eliminar movimiento
 
@@ -69,4 +71,9 @@ Usa /login para comenzar.
     NEW_MOVEMENT_FILE,
     EDIT_MOVEMENT_FIELD,
     EDIT_MOVEMENT_VALUE,
-) = range(10)
+    MOVE_FROM,
+    MOVE_TO,
+    MOVE_AMOUNT,
+    MOVE_NOTES,
+    MOVE_FILE,
+) = range(15)

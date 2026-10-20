@@ -1,6 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 from services.session_manager import session_manager
+from utils.formatters import movement_emoji, transfer_accounts
 from datetime import datetime
 import os
 from config import (
@@ -33,7 +34,8 @@ async def new_movement_start(update: Update, context: ContextTypes.DEFAULT_TYPE)
         "¿Qué tipo de movimiento deseas registrar?\n\n"
         "1️⃣ Ingreso 📈\n"
         "2️⃣ Gasto 📉\n\n"
-        "Responde con 1 o 2, o /cancelar para abortar.",
+        "Responde con 1 o 2, o /cancelar para abortar.\n\n"
+        "Para mover dinero entre tus cuentas usa /mover.",
         parse_mode='Markdown'
     )
     return NEW_MOVEMENT_TYPE
@@ -162,12 +164,15 @@ async def new_movement_notes(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
     return NEW_MOVEMENT_FILE
 
-@require_login
-async def new_movement_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Recibe el archivo adjunto o finaliza sin él"""
+class UnsupportedAttachment(Exception):
+    """El archivo enviado no es PDF ni imagen"""
+
+
+async def download_attachment(update: Update):
+    """Descarga a /tmp el documento o la foto del mensaje y devuelve su ruta,
+    o None si el mensaje no trae archivo (p. ej. /omitir).
+    Lanza UnsupportedAttachment si no es PDF ni imagen."""
     user_id = update.effective_user.id
-    api = session_manager.get_api_client(user_id)
-    file_path = None
 
     if update.message.document:
         doc = update.message.document
@@ -190,19 +195,35 @@ async def new_movement_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         allowed_extensions = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp']
         if extension not in allowed_extensions:
-            await update.message.reply_text(
-                "❌ Tipo de archivo no soportado. Solo se permiten PDF e imágenes "
-                "(JPG, PNG, GIF, WEBP).\n\nUsa /nuevo para intentar de nuevo."
-            )
-            return ConversationHandler.END
+            raise UnsupportedAttachment()
 
         file_path = f'/tmp/telegram_bot_{user_id}_{file.file_id}{extension}'
         await file.download_to_drive(file_path)
+        return file_path
 
-    elif update.message.photo:
+    if update.message.photo:
         file = await update.message.photo[-1].get_file()
         file_path = f'/tmp/telegram_bot_{user_id}_{file.file_id}.jpg'
         await file.download_to_drive(file_path)
+        return file_path
+
+    return None
+
+
+@require_login
+async def new_movement_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Recibe el archivo adjunto o finaliza sin él"""
+    user_id = update.effective_user.id
+    api = session_manager.get_api_client(user_id)
+
+    try:
+        file_path = await download_attachment(update)
+    except UnsupportedAttachment:
+        await update.message.reply_text(
+            "❌ Tipo de archivo no soportado. Solo se permiten PDF e imágenes "
+            "(JPG, PNG, GIF, WEBP).\n\nUsa /nuevo para intentar de nuevo."
+        )
+        return ConversationHandler.END
 
     # Crear movimiento
     try:
@@ -270,16 +291,26 @@ async def delete_movement_command(update: Update, context: ContextTypes.DEFAULT_
         movement = movement_response['data']['movimiento']
         
         # Confirmar eliminación
-        tipo_emoji = '📈' if movement['tipo'] == 'ingreso' else '📉'
+        tipo_emoji = movement_emoji(movement)
         cantidad = float(movement['cantidad']) if isinstance(movement['cantidad'], str) else movement['cantidad']
-        
-        await update.message.reply_text(
-            f"⚠️ ¿Estás seguro de eliminar este movimiento?\n\n"
-            f"{tipo_emoji} ID: {movement_id}\n"
-            f"Cantidad: €{cantidad:.2f}\n"
-            f"Cuenta: {movement.get('cuenta_nombre', 'N/A')}\n\n"
-            "Responde SI para confirmar o NO para cancelar."
-        )
+
+        if movement.get('id_transferencia'):
+            await update.message.reply_text(
+                f"⚠️ ¿Estás seguro de eliminar este movimiento de dinero?\n\n"
+                f"{tipo_emoji} ID: {movement_id}\n"
+                f"Cantidad: €{cantidad:.2f}\n"
+                f"Cuentas: {transfer_accounts(movement)}\n\n"
+                "Se eliminarán la salida y la entrada, y se actualizará el balance de las dos cuentas.\n\n"
+                "Responde SI para confirmar o NO para cancelar."
+            )
+        else:
+            await update.message.reply_text(
+                f"⚠️ ¿Estás seguro de eliminar este movimiento?\n\n"
+                f"{tipo_emoji} ID: {movement_id}\n"
+                f"Cantidad: €{cantidad:.2f}\n"
+                f"Cuenta: {movement.get('cuenta_nombre', 'N/A')}\n\n"
+                "Responde SI para confirmar o NO para cancelar."
+            )
         
         context.user_data['delete_movement_id'] = movement_id
         

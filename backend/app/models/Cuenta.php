@@ -212,8 +212,10 @@ class Cuenta
                     COUNT(CASE WHEN tipo = 'retirada' THEN 1 END) as total_retiradas,
                     COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN cantidad ELSE 0 END), 0) as suma_ingresos,
                     COALESCE(SUM(CASE WHEN tipo = 'retirada' THEN cantidad ELSE 0 END), 0) as suma_retiradas
-                FROM movimientos 
-                WHERE id_cuenta = :id";
+                FROM movimientos
+                WHERE id_cuenta = :id
+                -- Mover dinero entre cuentas propias no es ni ingreso ni gasto
+                AND id_transferencia IS NULL";
 
         return $this->db->fetchOne($sql, ['id' => $id]);
     }

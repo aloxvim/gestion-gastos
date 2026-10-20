@@ -97,6 +97,9 @@ CREATE TABLE IF NOT EXISTS movimientos (
     cantidad DECIMAL(15, 2) NOT NULL,
     notas VARCHAR(1000) DEFAULT NULL,
     adjunto VARCHAR(255) DEFAULT NULL, -- Ruta del archivo adjunto
+    -- "Mover dinero": la retirada en origen y el ingreso en destino comparten este valor.
+    -- NULL en ingresos y gastos normales. Ver database/migrations/001_mover_dinero.sql
+    id_transferencia CHAR(32) DEFAULT NULL,
     fecha_movimiento TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -104,7 +107,8 @@ CREATE TABLE IF NOT EXISTS movimientos (
     INDEX idx_cuenta (id_cuenta),
     INDEX idx_tipo (tipo),
     INDEX idx_fecha (fecha_movimiento),
-    INDEX idx_cantidad (cantidad)
+    INDEX idx_cantidad (cantidad),
+    INDEX idx_transferencia (id_transferencia)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabla de Movimientos de página (auditoría)

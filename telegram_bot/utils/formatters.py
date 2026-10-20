@@ -39,24 +39,43 @@ def format_account(account: Dict) -> str:
     
     return msg
 
+def transfer_accounts(movement: Dict) -> str:
+    """En un "mover dinero", devuelve 'Origen → Destino'.
+    El movimiento puede ser cualquiera de las dos partes del par."""
+    own = movement.get('cuenta_nombre', 'N/A')
+    other = movement.get('contraparte_nombre') or 'Cuenta eliminada'
+    return f"{own} → {other}" if movement['tipo'] == 'retirada' else f"{other} → {own}"
+
+def movement_emoji(movement: Dict) -> str:
+    """Emoji del tipo de movimiento (ingreso, gasto o mover dinero)"""
+    if movement.get('id_transferencia'):
+        return '🔄'
+    return '📈' if movement['tipo'] == 'ingreso' else '📉'
+
 def format_movement(movement: Dict) -> str:
     """Formatea información de un movimiento"""
-    tipo_emoji = '📈' if movement['tipo'] == 'ingreso' else '📉'
-    tipo_text = 'Ingreso' if movement['tipo'] == 'ingreso' else 'Gasto'
-    
+    tipo_emoji = movement_emoji(movement)
+    if movement.get('id_transferencia'):
+        tipo_text = 'Mover dinero'
+    else:
+        tipo_text = 'Ingreso' if movement['tipo'] == 'ingreso' else 'Gasto'
+
     cantidad = format_money(movement['cantidad'])
     fecha = format_date(movement['fecha_movimiento'])
-    
+
     msg = f"{tipo_emoji} *{tipo_text}*\n"
     msg += f"ID: `{movement['id']}`\n"
-    msg += f"Cuenta: {movement.get('cuenta_nombre', 'N/A')}\n"
+    if movement.get('id_transferencia'):
+        msg += f"Cuentas: {transfer_accounts(movement)}\n"
+    else:
+        msg += f"Cuenta: {movement.get('cuenta_nombre', 'N/A')}\n"
     msg += f"Cantidad: `{cantidad}`\n"
     msg += f"Fecha: {fecha}\n"
     
     if movement.get('notas'):
         msg += f"Notas: {movement['notas'][:100]}\n"
     
-    if movement.get('adjunto'):
+    if movement.get('adjunto') or movement.get('contraparte_adjunto'):
         msg += f"📎 Archivo adjunto\n"
     
     return msg
@@ -83,12 +102,16 @@ def format_movements_list(movements: List[Dict]) -> str:
     msg = "📊 *Últimos movimientos:*\n\n"
     
     for movement in movements:
-        tipo_emoji = '📈' if movement['tipo'] == 'ingreso' else '📉'
+        tipo_emoji = movement_emoji(movement)
         cantidad = format_money(movement['cantidad'])
         fecha = format_date(movement['fecha_movimiento'])
-        
-        # Línea principal con tipo, cantidad y cuenta
-        msg += f"{tipo_emoji} *{cantidad}* - {movement.get('cuenta_nombre', 'N/A')}\n"
+
+        # Línea principal con tipo, cantidad y cuenta (o cuentas, si es mover dinero)
+        if movement.get('id_transferencia'):
+            cuentas = transfer_accounts(movement)
+        else:
+            cuentas = movement.get('cuenta_nombre', 'N/A')
+        msg += f"{tipo_emoji} *{cantidad}* - {cuentas}\n"
         
         # Fecha e ID
         msg += f"📅 {fecha} • ID: `{movement['id']}`\n"
@@ -101,7 +124,7 @@ def format_movements_list(movements: List[Dict]) -> str:
             msg += f"💬 {notas_cortas}\n"
         
         # Indicador de adjunto
-        if movement.get('adjunto'):
+        if movement.get('adjunto') or movement.get('contraparte_adjunto'):
             msg += f"📎 Con archivo adjunto\n"
         
         msg += "\n"

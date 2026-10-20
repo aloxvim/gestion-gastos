@@ -102,6 +102,9 @@ export const movementsAPI = {
   create: (formData) => api.post('/movements', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
+  createTransfer: (formData) => api.post('/movements/transfer', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
   getAll: (params) => api.get('/movements', { params }),
   getOne: (id) => api.get(`/movements/${id}`),
   update: (id, formData) => api.put(`/movements/${id}`, formData, {

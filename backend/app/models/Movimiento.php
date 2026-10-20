@@ -7,6 +7,23 @@ use Exception;
 
 class Movimiento
 {
+    /**
+     * "Mover dinero" entre cuentas: se guarda como una retirada en la cuenta de
+     * origen y un ingreso en la de destino que comparten id_transferencia. Así
+     * los triggers de balance no cambian. No cuentan como ingresos ni gastos en
+     * estadísticas ni filtros, y se crean, editan y borran siempre por parejas.
+     *
+     * CONTRAPARTE_*: datos del otro movimiento del par (la cuenta de destino si
+     * este es la retirada, la de origen si es el ingreso). NULL en los normales.
+     *
+     * El adjunto de un "mover dinero" se guarda solo en la retirada; desde el
+     * ingreso se ve como contraparte_adjunto.
+     */
+    private const CONTRAPARTE_COLUMNS = "t.id AS contraparte_id, t.id_cuenta AS contraparte_id_cuenta,
+                ct.nombre AS contraparte_nombre, ct.color AS contraparte_color, t.adjunto AS contraparte_adjunto";
+    private const CONTRAPARTE_JOIN = "LEFT JOIN movimientos t ON t.id_transferencia = m.id_transferencia AND t.id <> m.id
+                LEFT JOIN cuentas ct ON ct.id = t.id_cuenta";
+
     private $db;
 
     public function __construct()
@@ -76,9 +93,10 @@ class Movimiento
      */
     public function findById($id)
     {
-        $sql = "SELECT m.*, c.nombre as cuenta_nombre, c.id_usuario 
-                FROM movimientos m 
-                INNER JOIN cuentas c ON m.id_cuenta = c.id 
+        $sql = "SELECT m.*, c.nombre as cuenta_nombre, c.id_usuario, " . self::CONTRAPARTE_COLUMNS . "
+                FROM movimientos m
+                INNER JOIN cuentas c ON m.id_cuenta = c.id
+                " . self::CONTRAPARTE_JOIN . "
                 WHERE m.id = :id";
         return $this->db->fetchOne($sql, ['id' => $id]);
     }
@@ -130,9 +148,10 @@ class Movimiento
      */
     public function findByUser($idUsuario, $filters = [])
     {
-        $sql = "SELECT m.*, c.nombre as cuenta_nombre, c.color as cuenta_color 
-            FROM movimientos m 
-            INNER JOIN cuentas c ON m.id_cuenta = c.id 
+        $sql = "SELECT m.*, c.nombre as cuenta_nombre, c.color as cuenta_color, " . self::CONTRAPARTE_COLUMNS . "
+            FROM movimientos m
+            INNER JOIN cuentas c ON m.id_cuenta = c.id
+            " . self::CONTRAPARTE_JOIN . "
             WHERE c.id_usuario = :id_usuario";
 
         $params = ['id_usuario' => $idUsuario];
@@ -151,11 +170,11 @@ class Movimiento
                 $sql .= " ORDER BY m.{$orderBy} {$orderDir}";
             } else {
                 // Si el campo no es válido, usar orden por defecto
-                $sql .= " ORDER BY fecha_movimiento DESC";
+                $sql .= " ORDER BY m.fecha_movimiento DESC";
             }
         } else {
             // Orden por defecto: más reciente primero
-            $sql .= " ORDER BY fecha_movimiento DESC";
+            $sql .= " ORDER BY m.fecha_movimiento DESC";
         }
 
         // Paginación
@@ -204,8 +223,21 @@ class Movimiento
         }
 
         if (isset($filters['tipo'])) {
-            $sql .= " AND m.tipo = :tipo";
-            $params['tipo'] = $filters['tipo'];
+            if ($filters['tipo'] === 'transferencia') {
+                $sql .= " AND m.id_transferencia IS NOT NULL";
+            } else {
+                // "Ingresos" y "Gastos" son solo los reales, sin los "mover dinero"
+                $sql .= " AND m.tipo = :tipo AND m.id_transferencia IS NULL";
+                $params['tipo'] = $filters['tipo'];
+            }
+        }
+
+        // En listados, cada "mover dinero" aparece una sola vez (su retirada, que
+        // trae la cuenta de destino como contraparte). Filtrando por una cuenta se
+        // muestra la parte de esa cuenta, sea la retirada o el ingreso.
+        // La exportación no lo activa: necesita los dos movimientos del par.
+        if (!empty($filters['agrupar_transferencias']) && !isset($filters['id_cuenta'])) {
+            $sql .= " AND NOT (m.id_transferencia IS NOT NULL AND m.tipo = 'ingreso')";
         }
 
         if (isset($filters['fecha_desde'])) {
@@ -320,6 +352,11 @@ class Movimiento
             throw new Exception("Movimiento no encontrado");
         }
 
+        // Un "mover dinero" se borra siempre entero (sus dos movimientos)
+        if (!empty($movimiento['id_transferencia'])) {
+            return $this->deleteTransfer($movimiento);
+        }
+
         // Eliminar archivo adjunto si existe
         if ($movimiento['adjunto']) {
             $this->deleteFile($movimiento['adjunto']);
@@ -336,6 +373,220 @@ class Movimiento
         }
 
         return $deleted;
+    }
+
+    /**
+     * Mueve dinero entre dos cuentas del mismo usuario: crea la retirada en
+     * origen y el ingreso en destino, enlazados por un id_transferencia común.
+     *
+     * $data: id_cuenta_origen, id_cuenta_destino, cantidad, notas, fecha_movimiento,
+     *        archivo (opcional, entrada de $_FILES; se guarda en la retirada)
+     */
+    public function createTransfer($data)
+    {
+        $origen = (int) ($data['id_cuenta_origen'] ?? 0);
+        $destino = (int) ($data['id_cuenta_destino'] ?? 0);
+        $cantidad = round(floatval($data['cantidad'] ?? 0), 2);
+
+        if (!$origen || !$destino) {
+            throw new Exception("Debes indicar la cuenta de origen y la de destino");
+        }
+        if ($origen === $destino) {
+            throw new Exception("La cuenta de origen y la de destino deben ser distintas");
+        }
+        if ($cantidad <= 0) {
+            throw new Exception("La cantidad debe ser mayor a 0");
+        }
+
+        $comun = [
+            'cantidad' => $cantidad,
+            'notas' => $data['notas'] ?? null,
+            'fecha_movimiento' => $data['fecha_movimiento'] ?? date('Y-m-d H:i:s'),
+            'id_transferencia' => bin2hex(random_bytes(16)),
+        ];
+
+        $adjunto = !empty($data['archivo']) ? $this->uploadFile($data['archivo']) : null;
+
+        try {
+            return $this->withTransaction(function () use ($origen, $destino, $cantidad, $comun, $adjunto) {
+                // FOR UPDATE: bloquea la cuenta de origen hasta terminar para que dos
+                // operaciones simultáneas no puedan gastar el mismo saldo
+                $cuentaOrigen = $this->db->fetchOne(
+                    "SELECT id, nombre, balance, moneda, id_usuario FROM cuentas WHERE id = :id FOR UPDATE",
+                    ['id' => $origen]
+                );
+                $cuentaDestino = $this->db->fetchOne(
+                    "SELECT id, nombre, id_usuario FROM cuentas WHERE id = :id",
+                    ['id' => $destino]
+                );
+
+                if (!$cuentaOrigen || !$cuentaDestino) {
+                    throw new Exception("La cuenta especificada no existe");
+                }
+                if ($cuentaOrigen['id_usuario'] != $cuentaDestino['id_usuario']) {
+                    throw new Exception("Solo se puede mover dinero entre cuentas del mismo usuario");
+                }
+                if ($cuentaOrigen['balance'] < $cantidad) {
+                    throw new Exception("Saldo insuficiente en '{$cuentaOrigen['nombre']}'. Disponible: "
+                        . formatMoney($cuentaOrigen['balance'], $cuentaOrigen['moneda'] ?? 'EUR'));
+                }
+
+                $idSalida = $this->db->insert('movimientos', $comun + ['tipo' => 'retirada', 'id_cuenta' => $origen, 'adjunto' => $adjunto]);
+                $idEntrada = $this->db->insert('movimientos', $comun + ['tipo' => 'ingreso', 'id_cuenta' => $destino]);
+
+                logAction(
+                    $cuentaOrigen['id_usuario'],
+                    "ha movido " . formatMoney($cantidad) . " de la cuenta '{$cuentaOrigen['nombre']}' a '{$cuentaDestino['nombre']}'"
+                );
+
+                return [
+                    'id_transferencia' => $comun['id_transferencia'],
+                    'movimiento_salida_id' => $idSalida,
+                    'movimiento_entrada_id' => $idEntrada,
+                ];
+            });
+        } catch (\Throwable $e) {
+            // Si no se pudo guardar, no dejar el archivo huérfano
+            if ($adjunto) {
+                $this->deleteFile($adjunto);
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Edita un "mover dinero" actualizando sus dos movimientos a la vez.
+     * $movimiento es cualquiera de los dos (resultado de findById).
+     *
+     * $data (todo opcional): cantidad, notas, fecha_movimiento,
+     *                        id_cuenta_origen, id_cuenta_destino,
+     *                        archivo (entrada de $_FILES; sustituye al adjunto actual)
+     */
+    public function updateTransfer($movimiento, $data)
+    {
+        $par = $this->db->fetchAll(
+            "SELECT id, tipo, id_cuenta, adjunto FROM movimientos WHERE id_transferencia = :t",
+            ['t' => $movimiento['id_transferencia']]
+        );
+
+        $actual = ['retirada' => null, 'ingreso' => null];
+        foreach ($par as $mov) {
+            $actual[$mov['tipo']] = $mov;
+        }
+
+        $origen = (int) ($data['id_cuenta_origen'] ?? $actual['retirada']['id_cuenta'] ?? 0);
+        $destino = (int) ($data['id_cuenta_destino'] ?? $actual['ingreso']['id_cuenta'] ?? 0);
+
+        if ($origen && $destino && $origen === $destino) {
+            throw new Exception("La cuenta de origen y la de destino deben ser distintas");
+        }
+        if (isset($data['cantidad']) && floatval($data['cantidad']) <= 0) {
+            throw new Exception("La cantidad debe ser mayor a 0");
+        }
+
+        $comun = array_intersect_key($data, array_flip(['cantidad', 'notas', 'fecha_movimiento']));
+        if (isset($comun['cantidad'])) {
+            $comun['cantidad'] = round(floatval($comun['cantidad']), 2);
+        }
+
+        // El adjunto vive en la retirada (o en lo que quede del par si falta)
+        $conAdjunto = $actual['retirada'] ?? $actual['ingreso'];
+        $nuevoAdjunto = !empty($data['archivo']) ? $this->uploadFile($data['archivo']) : null;
+
+        try {
+            $this->withTransaction(function () use ($actual, $origen, $destino, $comun, $movimiento, $conAdjunto, $nuevoAdjunto) {
+                // Los triggers revierten cada movimiento en su cuenta anterior y lo
+                // aplican en la nueva, así que cambiar cuentas o cantidad cuadra solo
+                foreach ($actual as $tipo => $mov) {
+                    if ($mov === null) {
+                        continue; // Par incompleto (p. ej. se eliminó la otra cuenta)
+                    }
+                    $cambios = $comun + ['id_cuenta' => $tipo === 'retirada' ? $origen : $destino];
+                    if ($nuevoAdjunto && $mov['id'] === $conAdjunto['id']) {
+                        $cambios['adjunto'] = $nuevoAdjunto;
+                    }
+                    $this->db->update('movimientos', $cambios, 'id = :id', ['id' => $mov['id']]);
+                }
+
+                logAction(
+                    $movimiento['id_usuario'],
+                    "ha modificado un movimiento de dinero entre cuentas"
+                );
+            });
+        } catch (\Throwable $e) {
+            if ($nuevoAdjunto) {
+                $this->deleteFile($nuevoAdjunto);
+            }
+            throw $e;
+        }
+
+        // Solo tras guardar con éxito se borra el archivo sustituido
+        if ($nuevoAdjunto && !empty($conAdjunto['adjunto'])) {
+            $this->deleteFile($conAdjunto['adjunto']);
+        }
+
+        return true;
+    }
+
+    /**
+     * Elimina los dos movimientos de un "mover dinero".
+     * Se borran con un DELETE explícito (no en cascada) para que los triggers
+     * de balance se ejecuten en ambas cuentas.
+     */
+    private function deleteTransfer($movimiento)
+    {
+        $adjuntos = $this->db->fetchAll(
+            "SELECT adjunto FROM movimientos WHERE id_transferencia = :t AND adjunto IS NOT NULL",
+            ['t' => $movimiento['id_transferencia']]
+        );
+
+        $deleted = $this->withTransaction(function () use ($movimiento) {
+            $deleted = $this->db->delete(
+                'movimientos',
+                'id_transferencia = :t',
+                ['t' => $movimiento['id_transferencia']]
+            );
+
+            logAction(
+                $movimiento['id_usuario'],
+                "ha eliminado un movimiento de dinero entre cuentas por " . formatMoney($movimiento['cantidad'])
+            );
+
+            return $deleted;
+        });
+
+        foreach ($adjuntos as $fila) {
+            $this->deleteFile($fila['adjunto']);
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * Ejecuta $fn en una transacción, salvo que ya haya una abierta (por ejemplo
+     * durante una importación), en cuyo caso se integra en ella.
+     */
+    private function withTransaction(callable $fn)
+    {
+        $pdo = $this->db->getConnection();
+        $propia = !$pdo->inTransaction();
+
+        if ($propia) {
+            $pdo->beginTransaction();
+        }
+
+        try {
+            $resultado = $fn();
+            if ($propia) {
+                $pdo->commit();
+            }
+            return $resultado;
+        } catch (\Throwable $e) {
+            if ($propia) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
     }
 
     /**
@@ -493,6 +744,11 @@ class Movimiento
                 'notas' => $mov['notas'] ?? null,
             ];
 
+            // "Mover dinero": los dos movimientos del par comparten este valor
+            if (!empty($mov['id_transferencia'])) {
+                $movimientoData['id_transferencia'] = $mov['id_transferencia'];
+            }
+
             // Procesar adjunto si existe
             if (!empty($mov['adjunto'])) {
                 $filepath = UPLOADS_PATH . '/movements/' . $mov['adjunto'];
@@ -557,6 +813,7 @@ class Movimiento
         $cuentasCreadas = [];
         $cuentasExistentes = [];
         $balancesOriginales = []; // nombre_cuenta => balance_original
+        $mapaTransferencias = []; // id_transferencia del backup => id_transferencia nuevo
         $imported = 0;
         $errors = [];
 
@@ -645,6 +902,13 @@ class Movimiento
                     'notas' => $mov['notas'] ?? null,
                     'fecha_movimiento' => $mov['fecha_movimiento'] ?? date('Y-m-d H:i:s')
                 ];
+
+                // "Mover dinero": se genera un identificador nuevo por cada par del
+                // backup, para no mezclarlo con transferencias que ya existan
+                if (!empty($mov['id_transferencia'])) {
+                    $mapaTransferencias[$mov['id_transferencia']] ??= bin2hex(random_bytes(16));
+                    $dataToInsert['id_transferencia'] = $mapaTransferencias[$mov['id_transferencia']];
+                }
 
                 // Procesar adjunto si existe en Base64
                 if (!empty($mov['adjunto_base64'])) {
@@ -928,21 +1192,15 @@ class Movimiento
                     COALESCE(AVG(CASE WHEN m.tipo = 'retirada' THEN m.cantidad END), 0) as promedio_retiradas,
                     MAX(m.cantidad) as movimiento_mayor,
                     MIN(m.cantidad) as movimiento_menor
-                FROM movimientos m 
-                INNER JOIN cuentas c ON m.id_cuenta = c.id 
-                WHERE c.id_usuario = :id_usuario";
+                FROM movimientos m
+                INNER JOIN cuentas c ON m.id_cuenta = c.id
+                WHERE c.id_usuario = :id_usuario
+                -- Mover dinero entre cuentas propias no es ni ingreso ni gasto
+                AND m.id_transferencia IS NULL";
 
         $params = ['id_usuario' => $idUsuario];
 
-        if (isset($filters['fecha_desde'])) {
-            $sql .= " AND m.fecha_movimiento >= :fecha_desde";
-            $params['fecha_desde'] = $filters['fecha_desde'];
-        }
-
-        if (isset($filters['fecha_hasta'])) {
-            $sql .= " AND m.fecha_movimiento <= :fecha_hasta";
-            $params['fecha_hasta'] = $filters['fecha_hasta'];
-        }
+        $sql .= $this->buildUserFilters(array_intersect_key($filters, array_flip(['fecha_desde', 'fecha_hasta'])), $params);
 
         return $this->db->fetchOne($sql, $params);
     }

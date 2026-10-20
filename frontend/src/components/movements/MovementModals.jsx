@@ -15,12 +15,19 @@ const MAX_IMPORT_MB = 256;
 // ============================================
 // MovementModal Component
 // ============================================
+// Primera cuenta distinta de la indicada (destino por defecto al mover dinero)
+const otherAccountId = (accounts, accountId) =>
+  accounts.find((acc) => String(acc.id) !== String(accountId))?.id || '';
+
 export const MovementModal = ({ isOpen, onClose, onSuccess, accounts, movement = null, defaultType = 'ingreso' }) => {
   const isEdit = !!movement;
+  // "Mover dinero" se guarda como retirada (origen) + ingreso (destino) enlazados
+  const isEditingTransfer = isEdit && !!movement.id_transferencia;
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     tipo: 'ingreso',
     id_cuenta: '',
+    id_cuenta_destino: '',
     cantidad: '',
     notas: '',
     fecha_movimiento: new Date().toISOString().slice(0, 10),
@@ -29,22 +36,38 @@ export const MovementModal = ({ isOpen, onClose, onSuccess, accounts, movement =
   const [file, setFile] = useState(null);
   const [currentAttachment, setCurrentAttachment] = useState(null);
   const BACKEND_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:8080';
+  const isTransfer = formData.tipo === 'transferencia';
+  // Movimiento que guarda el adjunto: él mismo, o su pareja si es la entrada de un "mover dinero"
+  const attachmentMovementId = movement && !movement.adjunto && movement.contraparte_adjunto
+    ? movement.contraparte_id
+    : movement?.id;
 
   useEffect(() => {
     if (movement) {
+      // En un "mover dinero" id_cuenta es el origen e id_cuenta_destino el destino,
+      // sea cual sea la parte del par que se está editando
+      const [origen, destino] = movement.tipo === 'retirada'
+        ? [movement.id_cuenta, movement.contraparte_id_cuenta]
+        : [movement.contraparte_id_cuenta, movement.id_cuenta];
+
       setFormData({
-        tipo: movement.tipo,
-        id_cuenta: movement.id_cuenta,
+        tipo: movement.id_transferencia ? 'transferencia' : movement.tipo,
+        id_cuenta: movement.id_transferencia ? origen || '' : movement.id_cuenta,
+        id_cuenta_destino: movement.id_transferencia ? destino || '' : '',
         cantidad: movement.cantidad,
         notas: movement.notas || '',
         fecha_movimiento: movement.fecha_movimiento.slice(0, 10),
         hora_movimiento: movement.fecha_movimiento.slice(11, 16), // Extraer HH:MM
       });
-      setCurrentAttachment(movement.adjunto || null);
+      // En un "mover dinero" el adjunto se guarda en la salida; desde la entrada llega como contraparte_adjunto
+      setCurrentAttachment(movement.adjunto || movement.contraparte_adjunto || null);
     } else {
+      const origen = accounts[0]?.id || '';
       setFormData({
-        tipo: defaultType,
-        id_cuenta: accounts[0]?.id || '',
+        // Mover dinero necesita al menos dos cuentas
+        tipo: defaultType === 'transferencia' && accounts.length < 2 ? 'ingreso' : defaultType,
+        id_cuenta: origen,
+        id_cuenta_destino: otherAccountId(accounts, origen),
         cantidad: '',
         notas: '',
         fecha_movimiento: new Date().toISOString().slice(0, 10),
@@ -55,8 +78,25 @@ export const MovementModal = ({ isOpen, onClose, onSuccess, accounts, movement =
     }
   }, [movement, accounts, isOpen, defaultType]);
 
+  // Al elegir como origen la cuenta que estaba de destino, cambiar el destino
+  const handleOriginChange = (value) => {
+    setFormData((prev) => ({
+      ...prev,
+      id_cuenta: value,
+      id_cuenta_destino: String(prev.id_cuenta_destino) === String(value)
+        ? otherAccountId(accounts, value)
+        : prev.id_cuenta_destino,
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (isTransfer) {
+      await handleTransferSubmit();
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -87,37 +127,125 @@ export const MovementModal = ({ isOpen, onClose, onSuccess, accounts, movement =
     }
   };
 
+  const handleTransferSubmit = async () => {
+    if (String(formData.id_cuenta) === String(formData.id_cuenta_destino)) {
+      toast.error('La cuenta de origen y la de destino deben ser distintas');
+      return;
+    }
+
+    setLoading(true);
+
+    const formDataToSend = new FormData();
+    formDataToSend.append('id_cuenta_origen', formData.id_cuenta);
+    formDataToSend.append('id_cuenta_destino', formData.id_cuenta_destino);
+    formDataToSend.append('cantidad', formData.cantidad);
+    formDataToSend.append('notas', formData.notas);
+    formDataToSend.append('fecha_movimiento', `${formData.fecha_movimiento} ${formData.hora_movimiento}:00`);
+    if (file) {
+      formDataToSend.append('adjunto', file);
+    }
+
+    try {
+      if (isEdit) {
+        await movementsAPI.update(movement.id, formDataToSend);
+        toast.success('Movimiento actualizado');
+      } else {
+        await movementsAPI.createTransfer(formDataToSend);
+        toast.success('Dinero movido');
+      }
+      onSuccess();
+    } catch (error) {
+      const message = error.response?.data?.message || 'Error al guardar';
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const accountOptions = accounts.map((acc) => ({
+    value: acc.id,
+    label: acc.nombre,
+  }));
+
+  // Un ingreso/gasto existente no se puede convertir en "mover dinero" ni al revés
+  const typeOptions = isEditingTransfer
+    ? [{ value: 'transferencia', label: '⇄ Mover dinero' }]
+    : [
+      { value: 'ingreso', label: '💰 Ingreso' },
+      { value: 'retirada', label: '💸 Gasto' },
+      ...(isEdit || accounts.length < 2 ? [] : [{ value: 'transferencia', label: '⇄ Mover dinero' }]),
+    ];
+
+  const title = isTransfer
+    ? (isEdit ? 'Editar Movimiento de Dinero' : 'Mover Dinero')
+    : (isEdit ? 'Editar Movimiento' : 'Nuevo Movimiento');
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEdit ? 'Editar Movimiento' : 'Nuevo Movimiento'}
+      title={title}
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <Select
-            label="Tipo"
-            value={formData.tipo}
-            onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}
-            options={[
-              { value: 'ingreso', label: '💰 Ingreso' },
-              { value: 'retirada', label: '💸 Gasto' },
-            ]}
-            required
-          />
+        {isTransfer ? (
+          <>
+            <Select
+              label="Tipo"
+              value={formData.tipo}
+              onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}
+              options={typeOptions}
+              disabled={isEditingTransfer}
+              required
+            />
+            <div className="grid grid-cols-2 gap-4">
+              <Select
+                label="Desde"
+                value={formData.id_cuenta}
+                onChange={(e) => handleOriginChange(e.target.value)}
+                options={accountOptions}
+                required
+              />
+              <Select
+                label="Hacia"
+                value={formData.id_cuenta_destino}
+                onChange={(e) => setFormData({ ...formData, id_cuenta_destino: e.target.value })}
+                options={accountOptions.filter((acc) => String(acc.value) !== String(formData.id_cuenta))}
+                required
+              />
+            </div>
+            <p className="text-xs text-gray-500 -mt-2">
+              El dinero sale de una cuenta y entra en la otra. No cuenta como ingreso ni como gasto.
+            </p>
+          </>
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            <Select
+              label="Tipo"
+              value={formData.tipo}
+              onChange={(e) => {
+                const tipo = e.target.value;
+                setFormData((prev) => ({
+                  ...prev,
+                  tipo,
+                  id_cuenta_destino: String(prev.id_cuenta_destino) === String(prev.id_cuenta)
+                    ? otherAccountId(accounts, prev.id_cuenta)
+                    : prev.id_cuenta_destino,
+                }));
+              }}
+              options={typeOptions}
+              required
+            />
 
-          <Select
-            label="Cuenta"
-            value={formData.id_cuenta}
-            onChange={(e) => setFormData({ ...formData, id_cuenta: e.target.value })}
-            options={accounts.map((acc) => ({
-              value: acc.id,
-              label: acc.nombre,
-            }))}
-            required
-          />
-        </div>
+            <Select
+              label="Cuenta"
+              value={formData.id_cuenta}
+              onChange={(e) => setFormData({ ...formData, id_cuenta: e.target.value })}
+              options={accountOptions}
+              required
+            />
+          </div>
+        )}
 
         <Input
           label="Cantidad"
@@ -188,7 +316,7 @@ export const MovementModal = ({ isOpen, onClose, onSuccess, accounts, movement =
                   onClick={async () => {
                     if (window.confirm('¿Eliminar el archivo adjunto? Esta acción no se puede deshacer.')) {
                       try {
-                        await movementsAPI.deleteAttachment(movement.id);
+                        await movementsAPI.deleteAttachment(attachmentMovementId);
                         setCurrentAttachment(null);
                         toast.success('Archivo eliminado');
                       } catch (error) {

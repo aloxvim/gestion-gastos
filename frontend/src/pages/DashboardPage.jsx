@@ -12,9 +12,10 @@ import {
   CreditCard,
   Plus,
   ArrowRight,
+  ArrowLeftRight,
   Euro
 } from 'lucide-react';
-import { formatMoney, formatDate } from '../utils/formatters';
+import { formatMoney, formatDate, getTransferAccounts } from '../utils/formatters';
 import toast from 'react-hot-toast';
 
 export const DashboardPage = () => {
@@ -205,7 +206,29 @@ export const DashboardPage = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {recentMovements.slice(0, 5).map((movement) => (
+              {recentMovements.slice(0, 5).map((movement) => movement.id_transferencia ? (
+                <div
+                  key={movement.id}
+                  className="flex items-center justify-between p-3 rounded-lg border border-gray-200"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-blue-100">
+                      <ArrowLeftRight className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {getTransferAccounts(movement).from.nombre} → {getTransferAccounts(movement).to.nombre}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {formatDate(movement.fecha_movimiento)}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="font-semibold text-gray-700">
+                    {formatMoney(movement.cantidad)}
+                  </p>
+                </div>
+              ) : (
                 <div
                   key={movement.id}
                   className="flex items-center justify-between p-3 rounded-lg border border-gray-200"
@@ -242,7 +265,7 @@ export const DashboardPage = () => {
       {/* Quick Actions */}
       <Card>
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Acciones Rápidas</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <Link
             to="/accounts?action=create"
             className="flex items-center gap-3 p-4 rounded-lg border-2 border-dashed border-gray-300 hover:border-primary-500 hover:bg-primary-50 transition-all"
@@ -266,7 +289,15 @@ export const DashboardPage = () => {
             <TrendingDown className="w-6 h-6 text-gray-600" />
             <span className="font-medium text-gray-900">Registrar gasto</span>
           </Link>
-          
+
+          <Link
+            to="/movements?action=create&type=transferencia"
+            className="flex items-center gap-3 p-4 rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-500 hover:bg-blue-50 transition-all"
+          >
+            <ArrowLeftRight className="w-6 h-6 text-gray-600" />
+            <span className="font-medium text-gray-900">Mover dinero</span>
+          </Link>
+
           <Link
             to="/movements?action=export"
             className="flex items-center gap-3 p-4 rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-500 hover:bg-blue-50 transition-all"

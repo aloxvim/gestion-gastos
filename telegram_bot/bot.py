@@ -23,7 +23,12 @@ from config import (
     NEW_MOVEMENT_ACCOUNT,
     NEW_MOVEMENT_AMOUNT,
     NEW_MOVEMENT_NOTES,
-    NEW_MOVEMENT_FILE
+    NEW_MOVEMENT_FILE,
+    MOVE_FROM,
+    MOVE_TO,
+    MOVE_AMOUNT,
+    MOVE_NOTES,
+    MOVE_FILE
 )
 
 from handlers.auth_handlers import (
@@ -54,6 +59,15 @@ from handlers.movement_handlers import (
     delete_movement_command,
     confirm_delete_movement,
     edit_movement_command
+)
+
+from handlers.transfer_handlers import (
+    move_start,
+    move_from,
+    move_to,
+    move_amount,
+    move_notes,
+    move_file
 )
 
 # Configurar logging
@@ -101,6 +115,27 @@ def main():
     )
     
     # ============================================
+    # Conversación de Mover Dinero entre cuentas
+    # ============================================
+    move_conversation = ConversationHandler(
+        entry_points=[CommandHandler('mover', move_start)],
+        states={
+            MOVE_FROM: [MessageHandler(filters.TEXT & ~filters.COMMAND, move_from)],
+            MOVE_TO: [MessageHandler(filters.TEXT & ~filters.COMMAND, move_to)],
+            MOVE_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, move_amount)],
+            MOVE_NOTES: [
+                CommandHandler('omitir', move_notes),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, move_notes)
+            ],
+            MOVE_FILE: [
+                MessageHandler(filters.Document.ALL | filters.PHOTO, move_file),
+                CommandHandler('omitir', move_file)
+            ],
+        },
+        fallbacks=[CommandHandler('cancelar', cancel)]
+    )
+
+    # ============================================
     # Comandos básicos
     # ============================================
     application.add_handler(CommandHandler('start', start))
@@ -112,6 +147,7 @@ def main():
     # ============================================
     application.add_handler(login_conversation)
     application.add_handler(new_movement_conversation)
+    application.add_handler(move_conversation)
     
     # ============================================
     # Comandos de sesión

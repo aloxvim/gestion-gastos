@@ -71,6 +71,50 @@ class MovementController
     }
 
     /**
+     * Mover dinero entre dos cuentas del usuario
+     */
+    public function createTransfer($userId)
+    {
+        try {
+            $data = !empty($_POST) ? $_POST : (json_decode(file_get_contents('php://input'), true) ?? []);
+
+            foreach (['id_cuenta_origen' => 'origen', 'id_cuenta_destino' => 'destino'] as $campo => $nombre) {
+                if (empty($data[$campo])) {
+                    jsonError("Debes indicar la cuenta de {$nombre}", 400);
+                }
+                if (!$this->cuentaModel->belongsToUser($data[$campo], $userId)) {
+                    jsonError("No tienes permiso para usar la cuenta de {$nombre}", 403);
+                }
+            }
+
+            if (empty($data['cantidad']) || floatval($data['cantidad']) <= 0) {
+                jsonError("La cantidad debe ser mayor a 0", 400);
+            }
+
+            if (isset($data['notas']) && strlen($data['notas']) > 1000) {
+                jsonError("Las notas no pueden superar los 1000 caracteres", 400);
+            }
+
+            $result = $this->movimientoModel->createTransfer([
+                'id_cuenta_origen' => $data['id_cuenta_origen'],
+                'id_cuenta_destino' => $data['id_cuenta_destino'],
+                'cantidad' => floatval($data['cantidad']),
+                'notas' => !empty($data['notas']) ? sanitize($data['notas']) : null,
+                'fecha_movimiento' => $data['fecha_movimiento'] ?? date('Y-m-d H:i:s'),
+                // Adjunto opcional (p. ej. el ticket de una recarga)
+                'archivo' => isset($_FILES['adjunto']) && $_FILES['adjunto']['error'] === UPLOAD_ERR_OK
+                    ? $_FILES['adjunto']
+                    : null,
+            ]);
+
+            jsonSuccess("Dinero movido correctamente", $result, 201);
+
+        } catch (\Exception $e) {
+            jsonError($e->getMessage(), 400);
+        }
+    }
+
+    /**
      * Obtener todos los movimientos del usuario
      */
     public function getAll($userId)
@@ -107,6 +151,9 @@ class MovementController
             if (isset($_GET['busqueda'])) {
                 $filters['busqueda'] = mb_substr($_GET['busqueda'], 0, 1000);
             }
+
+            // Cada "mover dinero" aparece una sola vez en el listado
+            $filters['agrupar_transferencias'] = true;
 
             // Ordenamiento
             if (isset($_GET['order_by'])) {
@@ -205,6 +252,13 @@ class MovementController
             error_log("UPDATE MOVEMENT - Data received: " . print_r($data, true));
             error_log("UPDATE MOVEMENT - FILES: " . print_r($_FILES, true));
 
+            // "Mover dinero": se editan sus dos movimientos a la vez y no admite
+            // cambiar de tipo
+            if (!empty($movimiento['id_transferencia'])) {
+                $this->updateTransfer($userId, $movimiento, $data);
+                return;
+            }
+
             // Validar campos si se proporcionan
             if (isset($data['tipo']) && !in_array($data['tipo'], ['ingreso', 'retirada'])) {
                 jsonError("El tipo debe ser 'ingreso' o 'retirada'", 400);
@@ -265,6 +319,46 @@ class MovementController
             error_log("UPDATE MOVEMENT - Error: " . $e->getMessage());
             jsonError($e->getMessage(), 400);
         }
+    }
+
+    /**
+     * Actualiza un "mover dinero" (llamado desde update())
+     */
+    private function updateTransfer($userId, $movimiento, $data)
+    {
+        foreach (['id_cuenta_origen' => 'origen', 'id_cuenta_destino' => 'destino'] as $campo => $nombre) {
+            if (!empty($data[$campo]) && !$this->cuentaModel->belongsToUser($data[$campo], $userId)) {
+                jsonError("No tienes permiso para usar la cuenta de {$nombre}", 403);
+            }
+        }
+
+        if (isset($data['cantidad']) && $data['cantidad'] !== '' && floatval($data['cantidad']) <= 0) {
+            jsonError("La cantidad debe ser mayor a 0", 400);
+        }
+
+        if (isset($data['notas']) && strlen($data['notas']) > 1000) {
+            jsonError("Las notas no pueden superar los 1000 caracteres", 400);
+        }
+
+        $updateData = [];
+        foreach (['id_cuenta_origen', 'id_cuenta_destino', 'cantidad', 'fecha_movimiento'] as $campo) {
+            if (isset($data[$campo]) && $data[$campo] !== '') {
+                $updateData[$campo] = $data[$campo];
+            }
+        }
+        // Las notas se pueden vaciar
+        if (array_key_exists('notas', $data)) {
+            $updateData['notas'] = $data['notas'] !== '' ? sanitize($data['notas']) : null;
+        }
+
+        // Adjunto nuevo (en PUT multipart, parseMultipartFormData ya rellenó $_FILES)
+        if (isset($_FILES['adjunto']) && $_FILES['adjunto']['error'] === UPLOAD_ERR_OK) {
+            $updateData['archivo'] = $_FILES['adjunto'];
+        }
+
+        $this->movimientoModel->updateTransfer($movimiento, $updateData);
+
+        jsonSuccess("Movimiento actualizado exitosamente");
     }
 
     /**

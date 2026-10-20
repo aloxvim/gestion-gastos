@@ -28,8 +28,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
+  ArrowLeftRight,
+  ArrowRight,
 } from 'lucide-react';
-import { formatMoney, formatDate, formatDateShort } from '../utils/formatters';
+import { formatMoney, formatDate, formatDateShort, getTransferAccounts } from '../utils/formatters';
 import toast from 'react-hot-toast';
 
 export const MovementsPage = () => {
@@ -85,7 +87,7 @@ export const MovementsPage = () => {
     const action = searchParams.get('action');
     const type = searchParams.get('type');
     if (action === 'create') {
-      openCreateModal(type === 'retirada' ? 'retirada' : 'ingreso');
+      openCreateModal(['retirada', 'transferencia'].includes(type) ? type : 'ingreso');
     } else if (action === 'export' && !exportLaunchedRef.current) {
       exportLaunchedRef.current = true;
       handleExportJSON();
@@ -273,6 +275,12 @@ export const MovementsPage = () => {
             <Upload size={20} />
             Importar
           </Button>
+          {accounts.length >= 2 && (
+            <Button variant="secondary" onClick={() => openCreateModal('transferencia')}>
+              <ArrowLeftRight size={20} />
+              Mover dinero
+            </Button>
+          )}
           <Button onClick={() => openCreateModal()}>
             <Plus size={20} />
             Nuevo
@@ -312,6 +320,7 @@ export const MovementsPage = () => {
                 { value: '', label: 'Todos' },
                 { value: 'ingreso', label: 'Ingresos' },
                 { value: 'retirada', label: 'Gastos' },
+                { value: 'transferencia', label: 'Mover dinero' },
               ]}
             />
             <Input
@@ -457,7 +466,12 @@ export const MovementsPage = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {movement.tipo === 'ingreso' ? (
+                        {movement.id_transferencia ? (
+                          <Badge variant="primary">
+                            <ArrowLeftRight size={14} className="mr-1" />
+                            Mover dinero
+                          </Badge>
+                        ) : movement.tipo === 'ingreso' ? (
                           <Badge variant="success">
                             <TrendingUp size={14} className="mr-1" />
                             Ingreso
@@ -470,34 +484,56 @@ export const MovementsPage = () => {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: movement.cuenta_color }}
-                          ></div>
-                          <span className="text-sm font-medium text-gray-900">
-                            {movement.cuenta_nombre}
-                          </span>
-                        </div>
+                        {movement.id_transferencia ? (
+                          (() => {
+                            const { from, to } = getTransferAccounts(movement);
+                            return (
+                              <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: from.color }}></div>
+                                <span>{from.nombre}</span>
+                                <ArrowRight size={14} className="text-gray-400" />
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: to.color }}></div>
+                                <span>{to.nombre}</span>
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: movement.cuenta_color }}
+                            ></div>
+                            <span className="text-sm font-medium text-gray-900">
+                              {movement.cuenta_nombre}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`text-sm font-semibold ${movement.tipo === 'ingreso'
-                            ? 'text-green-600'
-                            : 'text-red-600'
-                            }`}
-                        >
-                          {movement.tipo === 'ingreso' ? '+' : '-'}
-                          {formatMoney(movement.cantidad)}
-                        </span>
+                        {movement.id_transferencia ? (
+                          <span className="text-sm font-semibold text-gray-700">
+                            {formatMoney(movement.cantidad)}
+                          </span>
+                        ) : (
+                          <span
+                            className={`text-sm font-semibold ${movement.tipo === 'ingreso'
+                              ? 'text-green-600'
+                              : 'text-red-600'
+                              }`}
+                          >
+                            {movement.tipo === 'ingreso' ? '+' : '-'}
+                            {formatMoney(movement.cantidad)}
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
                         <div className="max-w-xs truncate" title={movement.notas || ''}>
                           {movement.notas || '-'}
                         </div>
-                        {movement.adjunto && (
+                        {/* En un "mover dinero" el adjunto está en la salida (contraparte_adjunto desde la entrada) */}
+                        {(movement.adjunto || movement.contraparte_adjunto) && (
                           <a
-                            href={`${BACKEND_URL}/uploads/movements/${movement.adjunto}`}
+                            href={`${BACKEND_URL}/uploads/movements/${movement.adjunto || movement.contraparte_adjunto}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center gap-1 text-primary-600 hover:text-primary-800 mt-1 cursor-pointer"
@@ -616,7 +652,9 @@ export const MovementsPage = () => {
         }}
         onConfirm={handleDelete}
         title="Eliminar movimiento"
-        message="¿Estás seguro de eliminar este movimiento? Se actualizará el balance de la cuenta."
+        message={selectedMovement?.id_transferencia
+          ? '¿Estás seguro de eliminar este movimiento de dinero? Se eliminará tanto la salida como la entrada y se actualizará el balance de las dos cuentas.'
+          : '¿Estás seguro de eliminar este movimiento? Se actualizará el balance de la cuenta.'}
         confirmText="Eliminar"
         variant="danger"
       />

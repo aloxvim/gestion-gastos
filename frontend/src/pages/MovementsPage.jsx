@@ -67,6 +67,8 @@ export const MovementsPage = () => {
     total: 0,
   });
   const isInitialLoadRef = useRef(true);
+  // Evita descargar dos veces al llegar con ?action=export (StrictMode ejecuta los efectos dos veces)
+  const exportLaunchedRef = useRef(false);
 
   // Abre el modal de creación con el tipo preseleccionado ('ingreso' o 'retirada')
   const openCreateModal = (type = 'ingreso') => {
@@ -80,6 +82,9 @@ export const MovementsPage = () => {
     const type = searchParams.get('type');
     if (action === 'create') {
       openCreateModal(type === 'retirada' ? 'retirada' : 'ingreso');
+    } else if (action === 'export' && !exportLaunchedRef.current) {
+      exportLaunchedRef.current = true;
+      handleExportJSON();
     }
     isInitialLoadRef.current = false;
   }, [searchParams]);

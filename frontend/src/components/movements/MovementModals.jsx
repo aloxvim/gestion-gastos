@@ -7,6 +7,11 @@ import { Select } from '../common/Select';
 import { Paperclip, Upload, X } from 'lucide-react';
 import { movementsAPI } from '../../services/api';
 import toast from 'react-hot-toast';
+
+// Tamaño máximo de un backup a importar. Debe coincidir con upload_max_filesize
+// (backend/apache-config.conf) y no superar client_max_body_size (frontend/nginx.conf).
+const MAX_IMPORT_MB = 256;
+
 // ============================================
 // MovementModal Component
 // ============================================
@@ -258,10 +263,17 @@ export const ImportModal = ({ isOpen, onClose, onSuccess }) => {
   const [file, setFile] = useState(null);
   const [fileType, setFileType] = useState('json');
   const [result, setResult] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(null);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
+      if (selectedFile.size > MAX_IMPORT_MB * 1024 * 1024) {
+        const sizeMB = (selectedFile.size / 1024 / 1024).toFixed(1);
+        toast.error(`El archivo pesa ${sizeMB} MB y el máximo es ${MAX_IMPORT_MB} MB`);
+        e.target.value = '';
+        return;
+      }
       setFile(selectedFile);
       setResult(null); // Limpiar resultados previos
       const ext = selectedFile.name.split('.').pop().toLowerCase();
@@ -279,16 +291,23 @@ export const ImportModal = ({ isOpen, onClose, onSuccess }) => {
 
     setLoading(true);
     setResult(null);
+    setUploadProgress(0);
 
     try {
       const formData = new FormData();
       formData.append('file', file);
 
+      const onUploadProgress = (event) => {
+        if (event.total) {
+          setUploadProgress(Math.round((event.loaded * 100) / event.total));
+        }
+      };
+
       let response;
       if (fileType === 'csv') {
-        response = await movementsAPI.importCSV(formData);
+        response = await movementsAPI.importCSV(formData, onUploadProgress);
       } else {
-        response = await movementsAPI.import(formData);
+        response = await movementsAPI.import(formData, onUploadProgress);
       }
 
       const data = response.data.data;
@@ -305,10 +324,15 @@ export const ImportModal = ({ isOpen, onClose, onSuccess }) => {
         toast.error('No se pudo importar ningún movimiento');
       }
     } catch (error) {
-      const message = error.response?.data?.message || 'Error al importar';
+      // Si el archivo supera client_max_body_size, nginx responde 413 con HTML (sin message)
+      const message = error.response?.data?.message
+        || (error.response?.status === 413
+          ? `El archivo es demasiado grande (máximo ${MAX_IMPORT_MB} MB)`
+          : 'Error al importar');
       toast.error(message);
     } finally {
       setLoading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -383,12 +407,34 @@ export const ImportModal = ({ isOpen, onClose, onSuccess }) => {
                   {file ? file.name : 'Selecciona un archivo JSON'}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  O arrastra y suelta aquí
+                  {file
+                    ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
+                    : `O arrastra y suelta aquí (máximo ${MAX_IMPORT_MB} MB)`}
                 </p>
               </div>
             </label>
           </div>
         </div>
+
+        {/* Progreso: con backups grandes la subida y el procesado tardan */}
+        {uploadProgress !== null && (
+          <div>
+            <div className="flex justify-between text-sm text-gray-600 mb-1">
+              <span>
+                {uploadProgress < 100
+                  ? 'Subiendo archivo…'
+                  : 'Procesando en el servidor, puede tardar unos minutos…'}
+              </span>
+              <span>{uploadProgress}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-primary-600 h-2 rounded-full transition-all"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Resultados de la importación */}
         {result && (

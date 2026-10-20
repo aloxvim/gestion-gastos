@@ -40,7 +40,7 @@ class Movimiento
             }
 
             if ($cuenta['balance'] < $data['cantidad']) {
-                throw new Exception("Saldo insuficiente. Disponible: " . formatMoney($cuenta['balance']) . " " . $cuenta['moneda']);
+                throw new Exception("Saldo insuficiente. Disponible: " . formatMoney($cuenta['balance'], $cuenta['moneda'] ?? 'EUR'));
             }
         }
 
@@ -430,41 +430,44 @@ class Movimiento
      * Exporta movimientos a JSON con adjuntos en Base64 y metadata de cuentas
      * Formato completo para backup/restore entre usuarios
      * INCLUYE balance actual para preservar balances iniciales
+     *
+     * Escribe directamente en la salida, movimiento a movimiento: con muchos
+     * adjuntos el backup ocupa decenas de MB y construirlo entero en memoria
+     * (array + json_encode) agotaba memory_limit.
      */
-    public function exportToJSON($idUsuario, $filters = [])
+    public function streamJSONExport($idUsuario, $filters = [])
     {
+        $jsonFlags = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE;
+
         $movimientos = $this->findByUser($idUsuario, $filters);
         $cuentaModel = new Cuenta();
 
         // Obtener todas las cuentas del usuario
         $todasCuentas = $cuentaModel->findByUser($idUsuario);
 
-        // Preparar estructura del backup
-        $backup = [
-            'version' => '2.0',
-            'fecha_exportacion' => date('Y-m-d H:i:s'),
-            'usuario_id_original' => $idUsuario, // Para verificar duplicados
-            'cuentas' => [],
-            'movimientos' => []
-        ];
-
         // Mapear cuentas con balance actual
-        $cuentasMap = [];
+        $cuentas = [];
         foreach ($todasCuentas as $cuenta) {
-            $cuentasMap[$cuenta['id']] = [
+            $cuentas[] = [
                 'nombre' => $cuenta['nombre'],
                 'tipo' => $cuenta['tipo'],
                 'moneda' => $cuenta['moneda'],
                 'color' => $cuenta['color'],
                 'descripcion' => $cuenta['descripcion'] ?? null,
                 'meta' => $cuenta['meta'] ?? null,
-                'balance_actual' => $cuenta['balance'] // NUEVO: Preservar balance
+                'balance_actual' => $cuenta['balance'] // Preservar balance
             ];
-
-            $backup['cuentas'][] = $cuentasMap[$cuenta['id']];
         }
 
+        // Cabecera del backup (todo salvo los movimientos, que van a continuación)
+        echo '{"version":"2.0"';
+        echo ',"fecha_exportacion":' . json_encode(date('Y-m-d H:i:s'));
+        echo ',"usuario_id_original":' . json_encode($idUsuario); // Para verificar duplicados
+        echo ',"cuentas":' . json_encode($cuentas, $jsonFlags);
+        echo ',"movimientos":[';
+
         // Mapear movimientos con nombre de cuenta en lugar de ID
+        $first = true;
         foreach ($movimientos as $mov) {
             $movimientoData = [
                 'cuenta_nombre' => $mov['cuenta_nombre'],
@@ -488,23 +491,33 @@ class Movimiento
 
                     $movimientoData['adjunto_base64'] = "data:{$mimeType};base64,{$base64}";
                     $movimientoData['adjunto_nombre'] = basename($mov['adjunto']);
+                    unset($fileContent, $base64);
                 }
             }
 
-            $backup['movimientos'][] = $movimientoData;
+            echo ($first ? "\n" : ",\n") . json_encode($movimientoData, $jsonFlags);
+            $first = false;
+            unset($movimientoData);
+            flush();
         }
 
-        return json_encode($backup, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        echo "\n]}";
     }
 
     /**
      * Importa movimientos desde JSON con creación automática de cuentas
      * Detecta y previene duplicados si se importa en el mismo usuario
-     * RESTAURA balance inicial si no hay movimientos que lo justifiquen
+     *
+     * Las cuentas nuevas se crean con su saldo base original (saldo final del
+     * backup menos el neto de sus movimientos) y los movimientos se importan en
+     * orden cronológico. Así la cuenta recorre los mismos saldos que la original
+     * y ningún gasto se rechaza por "saldo insuficiente".
      */
     public function importFromJSON($idUsuario, $jsonData)
     {
         $data = json_decode($jsonData, true);
+        // Liberar el texto original: con adjuntos en Base64 puede ocupar decenas de MB
+        unset($jsonData);
 
         if (!is_array($data)) {
             throw new Exception("Formato JSON inválido");
@@ -531,6 +544,31 @@ class Movimiento
         $imported = 0;
         $errors = [];
 
+        // PASO 0: Recorrer los movimientos (sin tocar los adjuntos) para calcular
+        // el neto de cada cuenta y el orden cronológico de importación.
+        // El backup se exporta del más reciente al más antiguo: importarlo en ese
+        // orden hacía que los gastos llegaran antes que los ingresos que los cubrían.
+        $netoPorCuenta = []; // nombre_cuenta => ingresos - retiradas del backup
+        $ordenImportacion = []; // índice en el backup => [fecha, prioridad]
+        foreach ($data['movimientos'] as $index => $mov) {
+            $nombreCuenta = $mov['cuenta_nombre'] ?? null;
+            $tipo = $mov['tipo'] ?? null;
+            $cantidad = floatval($mov['cantidad'] ?? 0);
+
+            if ($nombreCuenta !== null && $cantidad > 0 && in_array($tipo, ['ingreso', 'retirada'], true)) {
+                $netoPorCuenta[$nombreCuenta] = ($netoPorCuenta[$nombreCuenta] ?? 0)
+                    + ($tipo === 'ingreso' ? $cantidad : -$cantidad);
+            }
+
+            // Sin fecha se importan al final (se les asigna la fecha actual).
+            // Con la misma fecha, los ingresos van antes que las retiradas.
+            $ordenImportacion[$index] = [
+                $mov['fecha_movimiento'] ?? '9999-12-31 23:59:59',
+                $tipo === 'ingreso' ? 0 : 1
+            ];
+        }
+        asort($ordenImportacion);
+
         // PASO 1: Procesar cuentas - crear o mapear a existentes
         foreach ($data['cuentas'] as $cuentaData) {
             $nombreCuenta = $cuentaData['nombre'];
@@ -545,7 +583,9 @@ class Movimiento
                 $mapeoNombres[$nombreCuenta] = $cuentaExistente['id'];
                 $cuentasExistentes[] = $nombreCuenta;
             } else {
-                // Crear nueva cuenta (con balance 0, se actualizará con movimientos)
+                // Crear nueva cuenta con el saldo que tenía antes de su primer movimiento;
+                // los triggers lo llevarán hasta el saldo final al importar los movimientos
+                $saldoBase = round($balanceOriginal - ($netoPorCuenta[$nombreCuenta] ?? 0), 2);
                 try {
                     $nuevaId = $cuentaModel->create([
                         'id_usuario' => $idUsuario,
@@ -555,7 +595,7 @@ class Movimiento
                         'color' => $cuentaData['color'] ?? '#3B82F6',
                         'descripcion' => $cuentaData['descripcion'] ?? null,
                         'meta' => $cuentaData['meta'] ?? null,
-                        'balance' => 0 // Iniciar en 0, se ajustará después
+                        'balance' => $saldoBase
                     ]);
 
                     $mapeoNombres[$nombreCuenta] = $nuevaId;
@@ -567,8 +607,13 @@ class Movimiento
             }
         }
 
-        // PASO 2: Importar movimientos usando el mapeo de nombres
-        foreach ($data['movimientos'] as $index => $mov) {
+        // PASO 2: Importar movimientos en orden cronológico usando el mapeo de nombres
+        // Se elimina cada movimiento (con su adjunto en Base64) del array al
+        // procesarlo, para que la memoria baje a medida que avanza
+        foreach (array_keys($ordenImportacion) as $index) {
+            $mov = $data['movimientos'][$index];
+            unset($data['movimientos'][$index]);
+
             try {
                 $nombreCuenta = $mov['cuenta_nombre'];
 
@@ -646,8 +691,9 @@ class Movimiento
             }
         }
 
-        // PASO 3: AJUSTAR BALANCES INICIALES
-        // Para cada cuenta creada, verificar si el balance calculado coincide con el original
+        // PASO 3: AJUSTAR BALANCES (red de seguridad)
+        // Con el saldo base del PASO 1 el balance ya debería coincidir; solo hay
+        // diferencia si algún movimiento no se pudo importar
         foreach ($cuentasCreadas as $nombreCuenta) {
             $idCuenta = $mapeoNombres[$nombreCuenta];
             $balanceOriginal = $balancesOriginales[$nombreCuenta];

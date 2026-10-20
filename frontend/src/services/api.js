@@ -118,11 +118,13 @@ export const movementsAPI = {
     params,
     responseType: 'blob' 
   }),
-  import: (formData) => api.post('/movements/import', formData, {
+  import: (formData, onUploadProgress) => api.post('/movements/import', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress,
   }),
-    importCSV: (formData) => api.post('/movements/import/csv', formData, {
+  importCSV: (formData, onUploadProgress) => api.post('/movements/import/csv', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress,
   }),
 };
 

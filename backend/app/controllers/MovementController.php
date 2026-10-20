@@ -467,7 +467,11 @@ class MovementController
                 $filters['fecha_hasta'] = $_GET['fecha_hasta'];
             }
 
-            $json = $this->movimientoModel->exportToJSON($userId, $filters);
+            // Desactivar los buffers de salida (public/api/index.php abre uno con ob_start):
+            // el JSON se envía en streaming y no debe acumularse entero en memoria
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
 
             // Configurar headers para descarga
             header('Content-Type: application/json; charset=utf-8');
@@ -475,7 +479,7 @@ class MovementController
             header('Pragma: no-cache');
             header('Expires: 0');
 
-            echo $json;
+            $this->movimientoModel->streamJSONExport($userId, $filters);
             exit;
 
         } catch (\Exception $e) {
@@ -489,8 +493,9 @@ class MovementController
     public function importJSON($userId)
     {
         try {
-            if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
-                jsonError("Error al subir el archivo", 400);
+            $uploadError = getUploadError('file');
+            if ($uploadError !== null) {
+                jsonError($uploadError, 413);
             }
 
             $file = $_FILES['file'];
@@ -503,9 +508,9 @@ class MovementController
                 jsonError("El archivo debe ser JSON", 400);
             }
 
-            $jsonContent = file_get_contents($file['tmp_name']);
-
-            $result = $this->movimientoModel->importFromJSON($userId, $jsonContent);
+            // Se pasa el contenido sin guardarlo en una variable para que el modelo
+            // pueda liberarlo tras decodificarlo (con backups grandes importa)
+            $result = $this->movimientoModel->importFromJSON($userId, file_get_contents($file['tmp_name']));
 
             if ($result['imported'] === 0 && !empty($result['errors'])) {
                 jsonError("No se pudo importar ningún movimiento", 400, $result['errors']);
@@ -529,8 +534,9 @@ class MovementController
     public function importCSV($userId)
     {
         try {
-            if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
-                jsonError("Error al subir el archivo", 400);
+            $uploadError = getUploadError('file');
+            if ($uploadError !== null) {
+                jsonError($uploadError, 413);
             }
 
             $file = $_FILES['file'];

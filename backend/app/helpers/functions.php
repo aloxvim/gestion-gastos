@@ -155,6 +155,67 @@ function isValidFileSize($size)
 }
 
 /**
+ * Convierte un valor de php.ini como "256M" a bytes
+ */
+function iniSizeToBytes($value)
+{
+    $value = trim($value);
+    $number = (int) $value;
+    switch (strtoupper(substr($value, -1))) {
+        case 'G':
+            return $number * 1024 * 1024 * 1024;
+        case 'M':
+            return $number * 1024 * 1024;
+        case 'K':
+            return $number * 1024;
+        default:
+            return $number;
+    }
+}
+
+/**
+ * Tamaño máximo de subida en MB (el menor entre upload_max_filesize y post_max_size)
+ */
+function getMaxUploadMB()
+{
+    $bytes = min(
+        iniSizeToBytes(ini_get('upload_max_filesize')),
+        iniSizeToBytes(ini_get('post_max_size'))
+    );
+    return (int) floor($bytes / 1024 / 1024);
+}
+
+/**
+ * Comprueba la subida de un archivo de importación y devuelve un mensaje
+ * de error legible, o null si el archivo llegó bien.
+ */
+function getUploadError($field = 'file')
+{
+    // Si la petición supera post_max_size, PHP descarta $_FILES por completo
+    if (!isset($_FILES[$field])) {
+        $contentLength = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+        if ($contentLength > iniSizeToBytes(ini_get('post_max_size'))) {
+            return "El archivo es demasiado grande (máximo " . getMaxUploadMB() . " MB)";
+        }
+        return "No se ha recibido ningún archivo";
+    }
+
+    switch ($_FILES[$field]['error']) {
+        case UPLOAD_ERR_OK:
+            return null;
+        case UPLOAD_ERR_INI_SIZE:
+        case UPLOAD_ERR_FORM_SIZE:
+            return "El archivo es demasiado grande (máximo " . getMaxUploadMB() . " MB)";
+        case UPLOAD_ERR_PARTIAL:
+            return "El archivo se subió de forma incompleta, inténtalo de nuevo";
+        case UPLOAD_ERR_NO_FILE:
+            return "No se ha recibido ningún archivo";
+        default:
+            return "Error al subir el archivo";
+    }
+}
+
+/**
  * Genera un nombre de archivo único
  */
 function generateUniqueFilename($originalName)

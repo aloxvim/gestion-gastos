@@ -103,6 +103,11 @@ class MovementController
                 $filters['cantidad_max'] = $_GET['cantidad_max'];
             }
 
+            // Búsqueda en anotaciones (las notas admiten hasta 1000 caracteres)
+            if (isset($_GET['busqueda'])) {
+                $filters['busqueda'] = mb_substr($_GET['busqueda'], 0, 1000);
+            }
+
             // Ordenamiento
             if (isset($_GET['order_by'])) {
                 $filters['order_by'] = $_GET['order_by'];

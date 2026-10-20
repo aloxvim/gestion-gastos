@@ -27,6 +27,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Search,
 } from 'lucide-react';
 import { formatMoney, formatDate, formatDateShort } from '../utils/formatters';
 import toast from 'react-hot-toast';
@@ -58,9 +59,12 @@ export const MovementsPage = () => {
     tipo: '',
     fecha_desde: '',
     fecha_hasta: '',
+    busqueda: '',
     order_by: '',
     order_dir: 'DESC',
   });
+  // Texto del buscador; se pasa a filters.busqueda cuando se deja de escribir
+  const [searchInput, setSearchInput] = useState('');
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 20,
@@ -94,6 +98,18 @@ export const MovementsPage = () => {
       loadMovements();
     }
   }, [filters, pagination.page]);
+
+  // Buscar en las anotaciones 350 ms después de la última tecla, volviendo a la página 1
+  useEffect(() => {
+    const busqueda = searchInput.trim();
+    if (busqueda === filters.busqueda) return;
+
+    const timer = setTimeout(() => {
+      setFilters((prev) => ({ ...prev, busqueda }));
+      setPagination((prev) => ({ ...prev, page: 1 }));
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const loadData = async () => {
     try {
@@ -212,11 +228,17 @@ export const MovementsPage = () => {
       tipo: '',
       fecha_desde: '',
       fecha_hasta: '',
+      busqueda: '',
       order_by: '',
       order_dir: 'DESC',
     });
+    setSearchInput('');
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
+
+  const hasActiveFilters = Boolean(
+    filters.id_cuenta || filters.tipo || filters.fecha_desde || filters.fecha_hasta || filters.busqueda
+  );
 
   const totalPages = Math.ceil(pagination.total / pagination.limit);
 
@@ -343,8 +365,50 @@ export const MovementsPage = () => {
         </Card>
       )}
 
+      {/* Buscador por anotaciones */}
+      <div className="relative">
+        <Search
+          size={20}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+        />
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Buscar en las anotaciones…"
+          aria-label="Buscar en las anotaciones"
+          maxLength={1000}
+          className="input pl-10 pr-10"
+        />
+        {searchInput && (
+          <button
+            type="button"
+            onClick={() => setSearchInput('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            aria-label="Borrar búsqueda"
+          >
+            <X size={18} />
+          </button>
+        )}
+      </div>
+
       {/* Movements Table */}
-      {movements.length === 0 ? (
+      {movements.length === 0 && hasActiveFilters ? (
+        <EmptyState
+          icon={Search}
+          title="Sin resultados"
+          description={
+            filters.busqueda
+              ? `Ningún movimiento contiene "${filters.busqueda}" en sus anotaciones con los filtros actuales`
+              : 'Ningún movimiento coincide con los filtros actuales'
+          }
+          action={
+            <Button variant="secondary" onClick={resetFilters}>
+              Limpiar búsqueda y filtros
+            </Button>
+          }
+        />
+      ) : movements.length === 0 ? (
         <EmptyState
           icon={TrendingUp}
           title="No hay movimientos"

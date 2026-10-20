@@ -138,35 +138,7 @@ class Movimiento
         $params = ['id_usuario' => $idUsuario];
 
         // Filtros
-        if (isset($filters['id_cuenta'])) {
-            $sql .= " AND m.id_cuenta = :id_cuenta";
-            $params['id_cuenta'] = $filters['id_cuenta'];
-        }
-
-        if (isset($filters['tipo'])) {
-            $sql .= " AND m.tipo = :tipo";
-            $params['tipo'] = $filters['tipo'];
-        }
-
-        if (isset($filters['fecha_desde'])) {
-            $sql .= " AND m.fecha_movimiento >= :fecha_desde";
-            $params['fecha_desde'] = $filters['fecha_desde'];
-        }
-
-        if (isset($filters['fecha_hasta'])) {
-            $sql .= " AND m.fecha_movimiento <= :fecha_hasta";
-            $params['fecha_hasta'] = $filters['fecha_hasta'];
-        }
-
-        if (isset($filters['cantidad_min'])) {
-            $sql .= " AND m.cantidad >= :cantidad_min";
-            $params['cantidad_min'] = $filters['cantidad_min'];
-        }
-
-        if (isset($filters['cantidad_max'])) {
-            $sql .= " AND m.cantidad <= :cantidad_max";
-            $params['cantidad_max'] = $filters['cantidad_max'];
-        }
+        $sql .= $this->buildUserFilters($filters, $params);
 
         // Ordenamiento
         if (isset($filters['order_by']) && !empty($filters['order_by'])) {
@@ -212,6 +184,20 @@ class Movimiento
 
         $params = ['id_usuario' => $idUsuario];
 
+        $sql .= $this->buildUserFilters($filters, $params);
+
+        return $this->db->fetchColumn($sql, $params);
+    }
+
+    /**
+     * Construye las condiciones WHERE de los filtros de movimientos.
+     * Compartido por findByUser y countByUser para que el total de la
+     * paginación siempre corresponda a los mismos filtros que el listado.
+     */
+    private function buildUserFilters($filters, &$params)
+    {
+        $sql = '';
+
         if (isset($filters['id_cuenta'])) {
             $sql .= " AND m.id_cuenta = :id_cuenta";
             $params['id_cuenta'] = $filters['id_cuenta'];
@@ -222,7 +208,37 @@ class Movimiento
             $params['tipo'] = $filters['tipo'];
         }
 
-        return $this->db->fetchColumn($sql, $params);
+        if (isset($filters['fecha_desde'])) {
+            $sql .= " AND m.fecha_movimiento >= :fecha_desde";
+            $params['fecha_desde'] = $filters['fecha_desde'];
+        }
+
+        if (isset($filters['fecha_hasta'])) {
+            $sql .= " AND m.fecha_movimiento <= :fecha_hasta";
+            // Una fecha sin hora ("2025-01-31") debe incluir todo ese día
+            $params['fecha_hasta'] = strlen($filters['fecha_hasta']) === 10
+                ? $filters['fecha_hasta'] . ' 23:59:59'
+                : $filters['fecha_hasta'];
+        }
+
+        if (isset($filters['cantidad_min'])) {
+            $sql .= " AND m.cantidad >= :cantidad_min";
+            $params['cantidad_min'] = $filters['cantidad_min'];
+        }
+
+        if (isset($filters['cantidad_max'])) {
+            $sql .= " AND m.cantidad <= :cantidad_max";
+            $params['cantidad_max'] = $filters['cantidad_max'];
+        }
+
+        // Búsqueda en las anotaciones. La colación utf8mb4_unicode_ci ya ignora
+        // mayúsculas y tildes; se escapan los comodines de LIKE (% y _)
+        if (isset($filters['busqueda']) && trim($filters['busqueda']) !== '') {
+            $sql .= " AND m.notas LIKE :busqueda";
+            $params['busqueda'] = '%' . addcslashes(trim($filters['busqueda']), '%_\\') . '%';
+        }
+
+        return $sql;
     }
 
     /**

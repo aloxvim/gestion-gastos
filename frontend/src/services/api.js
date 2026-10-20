@@ -33,11 +33,23 @@ api.interceptors.request.use(
   }
 );
 
+// Endpoints públicos cuyo 401 significa "datos incorrectos", no "sesión caducada".
+// No deben redirigir: la recarga borraría el mensaje de error antes de verse.
+const PUBLIC_AUTH_ENDPOINTS = [
+  '/auth/login',
+  '/auth/verify-2fa',
+  '/auth/register',
+  '/auth/request-password-reset',
+  '/auth/reset-password',
+];
+
 // Interceptor para manejar errores
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const isPublicAuth = PUBLIC_AUTH_ENDPOINTS.includes(error.config?.url);
+
+    if (error.response?.status === 401 && !isPublicAuth) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';

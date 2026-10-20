@@ -41,15 +41,16 @@ class APIClient:
                 **kwargs
             )
             
-            if response.status_code == 401:
-                raise Exception("Sesión expirada o inválida")
-            
             if not response.ok:
+                # En un 401 el backend distingue "Usuario o contraseña incorrectos"
+                # (login) de una sesión caducada; usar su mensaje si lo hay
+                fallback = ("Sesión expirada o inválida" if response.status_code == 401
+                            else f'Error {response.status_code}')
                 try:
                     error_data = response.json()
-                    message = error_data.get('message', f'Error {response.status_code}')
+                    message = error_data.get('message') or fallback
                 except ValueError:
-                    message = f'Error {response.status_code}'
+                    message = fallback
                 raise Exception(message)
             
             try:

@@ -100,7 +100,7 @@ class AuthController
             $data = json_decode(file_get_contents('php://input'), true);
 
             if (empty($data['nombre_usuario']) || empty($data['contrasena'])) {
-                jsonError("Credenciales incorrectas", 401);
+                jsonError("Usuario o contraseña incorrectos", 401);
             }
 
             // Verificar credenciales
@@ -110,7 +110,7 @@ class AuthController
             );
 
             if (!$user) {
-                jsonError("Credenciales incorrectas", 401);
+                jsonError("Usuario o contraseña incorrectos", 401);
             }
 
             // Verificar si tiene 2FA activado

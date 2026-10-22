@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Base de datos MySQL
   db:
@@ -8,16 +6,19 @@ services:
     restart: unless-stopped
     command: --log-bin-trust-function-creators=1
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
+      # Las contraseñas están en .env (no se sube a GitHub). Estas variables solo
+      # crean los usuarios la primera vez; para cambiarlas en una instalación
+      # existente usar scripts/cambiar_contrasenas_bd.sh
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Falta DB_ROOT_PASSWORD en .env (ejecuta scripts/cambiar_contrasenas_bd.sh)}
       MYSQL_DATABASE: gastos_db
       MYSQL_USER: gastos_user
-      MYSQL_PASSWORD: gastos_pass
+      MYSQL_PASSWORD: ${DB_APP_PASSWORD:?Falta DB_APP_PASSWORD en .env (ejecuta scripts/cambiar_contrasenas_bd.sh)}
       TZ: Europe/Madrid
     volumes:
       - ./mysql-data:/var/lib/mysql
       - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "3307:3306"
+    # Sin "ports": MySQL solo es accesible dentro de la red de Docker
+    # (backend y phpMyAdmin), no desde otros dispositivos
     networks:
       - gastos_network
 
@@ -39,7 +40,7 @@ services:
       DB_HOST: db
       DB_NAME: gastos_db
       DB_USER: gastos_user
-      DB_PASS: gastos_pass
+      DB_PASS: ${DB_APP_PASSWORD:?Falta DB_APP_PASSWORD en .env (ejecuta scripts/cambiar_contrasenas_bd.sh)}
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USER: ${SMTP_USER}
@@ -80,7 +81,10 @@ services:
     networks:
       - gastos_network
 
-  # phpMyAdmin (opcional, para desarrollo)
+  # phpMyAdmin, para corregir datos a mano desde cualquier dispositivo de la red.
+  # Pide usuario y contraseña (gastos_user / DB_APP_PASSWORD de .env) y no
+  # permite entrar como root (ver phpmyadmin/config.user.inc.php).
+  # No redirigir este puerto en el router: no debe ser accesible desde Internet.
   phpmyadmin:
     image: phpmyadmin:latest
     container_name: gastos_phpmyadmin
@@ -89,8 +93,8 @@ services:
       - "8081:80"
     environment:
       PMA_HOST: db
-      PMA_USER: gastos_user
-      PMA_PASSWORD: gastos_pass
+    volumes:
+      - ./phpmyadmin/config.user.inc.php:/etc/phpmyadmin/config.user.inc.php:ro
     depends_on:
       - db
     networks:

@@ -23,6 +23,8 @@ telegram_bot/tmp/
 
 # Environment
 .env
+# Copias de .env que hace scripts/cambiar_contrasenas_bd.sh (contienen contraseñas)
+.env.bak-*
 
 # Docker
 .docker/

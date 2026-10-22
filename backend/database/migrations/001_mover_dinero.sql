@@ -9,10 +9,12 @@
 -- y los movimientos existentes quedan con id_transferencia = NULL (ingresos y
 -- gastos normales).
 --
--- Aplicar en una instalación existente (hacer antes una copia de seguridad):
---   docker exec gastos_db mysqldump -ugastos_user -pgastos_pass --no-tablespaces gastos_db > backup_antes_mover_dinero.sql
+-- Aplicar en una instalación existente (hacer antes una copia de seguridad).
+-- La contraseña de gastos_user está en .env (DB_APP_PASSWORD):
+--   DB_PASS="$(grep '^DB_APP_PASSWORD=' .env | cut -d= -f2-)"
+--   docker exec -e MYSQL_PWD="$DB_PASS" gastos_db mysqldump -ugastos_user --no-tablespaces gastos_db > backup_antes_mover_dinero.sql
 --   (--no-tablespaces es necesario: gastos_user no tiene el privilegio PROCESS)
---   docker exec -i gastos_db mysql -ugastos_user -pgastos_pass gastos_db < backend/database/migrations/001_mover_dinero.sql
+--   docker exec -i -e MYSQL_PWD="$DB_PASS" gastos_db mysql -ugastos_user gastos_db < backend/database/migrations/001_mover_dinero.sql
 --
 -- Si ya está aplicada, MySQL responde "Duplicate column name 'id_transferencia'"
 -- y no cambia nada.

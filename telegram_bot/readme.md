@@ -81,7 +81,8 @@ python bot.py
 
 ### Acciones
 - `/nuevo` - Crear nuevo movimiento (paso a paso)
-- `/eliminar [ID]` - Eliminar un movimiento
+- `/mover` - Mover dinero entre tus cuentas (paso a paso, con adjunto opcional). No cuenta como ingreso ni como gasto
+- `/eliminar [ID]` - Eliminar un movimiento (si es un movimiento de dinero, se eliminan la salida y la entrada)
 
 ### Ayuda
 - `/ayuda` - Ver lista de comandos

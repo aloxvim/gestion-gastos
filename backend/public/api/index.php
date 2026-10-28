@@ -34,6 +34,7 @@ use Controllers\AccountController;
 use Controllers\MovementController;
 use Controllers\AdminController;
 use Controllers\TagController;
+use Controllers\AnalysisController;
 
 $router = new Router();
 
@@ -245,6 +246,31 @@ $router->delete('/movements/:id/attachment', function ($id) {
     $userId = $GLOBALS['current_user']['id'];
     $controller = new MovementController();
     $controller->deleteAttachment($userId, $id);
+}, [AuthMiddleware::class]);
+
+// Análisis con IA (Google Gemini)
+$router->get('/analysis/config', function () {
+    $userId = $GLOBALS['current_user']['id'];
+    $controller = new AnalysisController();
+    $controller->getConfig($userId);
+}, [AuthMiddleware::class]);
+
+$router->put('/analysis/key', function () {
+    $userId = $GLOBALS['current_user']['id'];
+    $controller = new AnalysisController();
+    $controller->saveKey($userId);
+}, [AuthMiddleware::class]);
+
+$router->delete('/analysis/key', function () {
+    $userId = $GLOBALS['current_user']['id'];
+    $controller = new AnalysisController();
+    $controller->deleteKey($userId);
+}, [AuthMiddleware::class]);
+
+$router->post('/analysis', function () {
+    $userId = $GLOBALS['current_user']['id'];
+    $controller = new AnalysisController();
+    $controller->analyze($userId);
 }, [AuthMiddleware::class]);
 
 // ============================================

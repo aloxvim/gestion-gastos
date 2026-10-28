@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { userAPI } from '../services/api';
+import { userAPI, analysisAPI } from '../services/api';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Input } from '../components/common/Input';
@@ -20,6 +21,9 @@ import {
   Sun,
   Moon,
   Monitor,
+  Sparkles,
+  AlertTriangle,
+  ExternalLink,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTheme } from '../contexts/ThemeContext';
@@ -63,6 +67,147 @@ const AppearanceTab = () => {
         })}
       </div>
     </Card>
+  );
+};
+
+// AI Tab (clave API de Google AI Studio para el análisis con IA)
+const AITab = () => {
+  const [config, setConfig] = useState(null);
+  const [clave, setClave] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  useEffect(() => {
+    loadConfig();
+  }, []);
+
+  const loadConfig = async () => {
+    try {
+      const response = await analysisAPI.getConfig();
+      setConfig(response.data.data.config);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error al cargar la configuración');
+    }
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+
+    try {
+      await analysisAPI.saveKey({ clave: clave.trim() });
+      setClave('');
+      await loadConfig();
+      toast.success('Clave API guardada');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error al guardar la clave');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await analysisAPI.deleteKey();
+      await loadConfig();
+      toast.success('Clave API eliminada');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error al eliminar la clave');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {config?.tiene_movimientos && (
+        <div className="flex gap-3 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-yellow-900 space-y-2">
+            <p className="font-medium">Revisa tus movimientos antiguos entre cuentas</p>
+            <p>
+              Antes de existir «Mover dinero», pasar dinero entre tus propias cuentas se
+              anotaba como un gasto y un ingreso normales. Por ejemplo, recargar 20 € en
+              una Paysafecard con efectivo quedaba como un gasto de 20 € en efectivo y un
+              ingreso de 20 € en la tarjeta; al gastarlos después, el análisis vería
+              40 € de gastos en lugar de 20 €.
+            </p>
+            <p>
+              El análisis cuenta todos los ingresos y gastos tal y como están, diga lo
+              que diga la anotación; solo deja fuera los «Mover dinero». Para que sea
+              exacto, sustituye cada una de esas parejas antiguas por un «Mover dinero»
+              desde Movimientos.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <Card>
+        <h2 className="text-xl font-semibold text-gray-900 mb-1">
+          Clave API de Google AI Studio
+        </h2>
+        <p className="text-sm text-gray-600 mb-4">
+          El análisis con IA usa Google Gemini para agrupar tus movimientos en
+          categorías a partir de sus anotaciones. Puedes crear una clave gratuita en{' '}
+          <a
+            href="https://aistudio.google.com/apikey"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-primary-600 hover:underline"
+          >
+            Google AI Studio <ExternalLink size={14} />
+          </a>
+          .
+        </p>
+
+        {config?.clave_configurada && (
+          <div className="flex items-center justify-between gap-4 p-4 mb-4 border border-gray-200 rounded-lg">
+            <div>
+              <p className="font-medium text-gray-900">Clave guardada</p>
+              <p className="text-sm text-gray-600">
+                <code>••••••••{config.clave_final}</code>
+              </p>
+            </div>
+            <Button variant="danger" size="sm" onClick={() => setIsDeleteDialogOpen(true)}>
+              <Trash2 size={16} />
+            </Button>
+          </div>
+        )}
+
+        <form onSubmit={handleSave} className="space-y-4">
+          <Input
+            label={config?.clave_configurada ? 'Reemplazar clave' : 'Clave API'}
+            type="password"
+            value={clave}
+            onChange={(e) => setClave(e.target.value)}
+            placeholder="AIza... o AQ...."
+            autoComplete="off"
+            required
+          />
+          <Button type="submit" loading={saving} disabled={!clave.trim()}>
+            Guardar clave
+          </Button>
+        </form>
+
+        <p className="text-xs text-gray-500 mt-4">
+          Al analizar se envían a Google las anotaciones y los importes de tus
+          movimientos, pero no los nombres de tus cuentas ni las fechas. Con las claves
+          gratuitas, Google puede usar lo que recibe para mejorar sus productos.
+        </p>
+        <p className="text-xs text-gray-500 mt-2">
+          Las claves gratuitas tienen límites de uso y los modelos de Google a veces están
+          saturados, así que el análisis puede fallar de forma puntual. Normalmente basta
+          con reintentarlo pasados unos minutos.
+        </p>
+      </Card>
+
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={handleDelete}
+        title="Eliminar clave API"
+        message="El análisis con IA dejará de funcionar hasta que guardes otra clave."
+        confirmText="Eliminar"
+      />
+    </div>
   );
 };
 
@@ -161,13 +306,15 @@ const RoleRequestTab = ({ user }) => {
 
 export const SettingsPage = () => {
   const { user, updateUser, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState('profile');
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState(location.state?.tab || 'profile');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const tabs = [
     { id: 'profile', name: 'Perfil', icon: User },
     { id: 'security', name: 'Seguridad', icon: Shield },
     { id: 'api', name: 'API Tokens', icon: Key },
+    { id: 'ai', name: 'Análisis IA', icon: Sparkles },
     { id: 'appearance', name: 'Apariencia', icon: Palette },
     ...(user?.rol === 'usuario' || user?.rol === 'solicita' ? [{ id: 'role', name: 'Rol', icon: Shield }] : []),
     ...(user?.rol !== 'propietario' ? [{ id: 'danger', name: 'Zona de Peligro', icon: Trash2 }] : []),
@@ -205,6 +352,7 @@ export const SettingsPage = () => {
       {activeTab === 'profile' && <ProfileTab user={user} updateUser={updateUser} />}
       {activeTab === 'security' && <SecurityTab user={user} updateUser={updateUser} />}
       {activeTab === 'api' && <APITokensTab />}
+      {activeTab === 'ai' && <AITab />}
       {activeTab === 'appearance' && <AppearanceTab />}
       {activeTab === 'role' && <RoleRequestTab user={user} />}
       {activeTab === 'danger' && (

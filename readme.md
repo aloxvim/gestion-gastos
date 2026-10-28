@@ -19,6 +19,7 @@ Aplicación web completa para la gestión de ingresos y gastos personales, con b
 - ✅ Búsqueda de movimientos por anotaciones y filtros por cuenta, tipo y fechas
 - ✅ Copias de seguridad en JSON con adjuntos incluidos (importación de hasta 256 MB)
 - ✅ Modo oscuro (claro, oscuro o según el sistema)
+- ✅ **Análisis con IA** (Google Gemini): cuánto has gastado e ingresado por categoría, deducida de tus anotaciones
 
 ### 🔐 Seguridad
 - ✅ Sesiones con tokens aleatorios que caducan
@@ -183,6 +184,7 @@ Si la actualización incluye cambios en la base de datos, **aplica la migración
 | Migración | Cambio |
 |-----------|--------|
 | `001_mover_dinero.sql` | Añade `id_transferencia` a `movimientos` para "Mover dinero" |
+| `002_analisis_ia.sql` | Crea la tabla `configuracion_ia` (clave API de Gemini de cada usuario) para el análisis con IA |
 
 Para aplicar una:
 
@@ -191,7 +193,7 @@ DB_PASS="$(grep '^DB_APP_PASSWORD=' .env | cut -d= -f2-)"
 docker exec -i -e MYSQL_PWD="$DB_PASS" gastos_db mysql -ugastos_user gastos_db < backend/database/migrations/001_mover_dinero.sql
 ```
 
-Si ya estaba aplicada, MySQL responde con un error del tipo `Duplicate column name` y no cambia nada.
+Si ya estaba aplicada, MySQL responde con un error del tipo `Duplicate column name` y no cambia nada (la 002 simplemente no hace nada).
 
 > Las instalaciones anteriores a la versión con contraseñas en `.env` deben ejecutar una vez `./scripts/cambiar_contrasenas_bd.sh` justo después del `git pull`. Hasta entonces, `docker compose` se niega a arrancar y avisa de que falta `DB_APP_PASSWORD`.
 
@@ -269,6 +271,8 @@ GET    /api/movements/stats         # Estadísticas (sin contar los movimientos 
 GET    /api/movements/export/json   # Exportar copia de seguridad JSON
 GET    /api/movements/export/csv    # Exportar CSV
 POST   /api/movements/import        # Importar copia de seguridad JSON
+PUT    /api/analysis/key            # Guardar la clave API de Google AI Studio
+POST   /api/analysis                # Analizar con IA (fecha_desde, fecha_hasta)
 ```
 
 Todas las rutas están en `backend/public/api/index.php`. Las protegidas necesitan la cabecera `Authorization: Bearer <token>`.
@@ -333,6 +337,9 @@ Los triggers SQL actualizan el balance automáticamente al crear, editar o elimi
 
 ### Mover Dinero
 Pasar dinero de una cuenta a otra (por ejemplo, ingresar efectivo en el banco) se guarda como una salida y una entrada enlazadas. Los saldos de ambas cuentas se actualizan, pero no cuenta como gasto ni como ingreso: así las estadísticas reflejan solo lo que realmente gastas.
+
+### Análisis con IA
+Cada usuario guarda su propia clave API gratuita de [Google AI Studio](https://aistudio.google.com/apikey) en Configuración → Análisis IA. Como los movimientos no tienen categoría, Gemini la deduce de las anotaciones; los importes los suma la aplicación, así que las cifras son exactas aunque la clasificación pueda fallar. A Google solo se envían las anotaciones y los importes, no los nombres de las cuentas ni las fechas. Los "Mover dinero" no cuentan; cualquier otro ingreso o gasto se suma siempre, diga lo que diga su anotación (los traspasos antiguos anotados como gasto + ingreso conviene sustituirlos por un "Mover dinero"). Si un modelo está saturado o ha agotado su cuota gratuita, se prueba el siguiente (por defecto `gemini-flash-latest`, `gemini-flash-lite-latest` y `gemini-2.5-flash`); la lista se cambia con `GEMINI_MODEL` en `.env`, separada por comas.
 
 ### Metas de Ahorro
 Configura objetivos de ahorro y ve tu progreso en tiempo real.

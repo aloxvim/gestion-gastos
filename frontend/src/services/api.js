@@ -136,6 +136,14 @@ export const tagsAPI = {
   getAll: () => api.get('/tags'),
 };
 
+// Análisis con IA (Google Gemini)
+export const analysisAPI = {
+  getConfig: () => api.get('/analysis/config'),
+  saveKey: (data) => api.put('/analysis/key', data),
+  deleteKey: () => api.delete('/analysis/key'),
+  analyze: (data) => api.post('/analysis', data),
+};
+
 // Admin
 export const adminAPI = {
   getUsers: (params) => api.get('/admin/users', { params }),

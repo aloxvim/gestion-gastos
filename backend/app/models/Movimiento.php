@@ -1178,6 +1178,27 @@ class Movimiento
     }
 
     /**
+     * Ingresos y gastos reales de un usuario en un periodo, para el análisis con IA.
+     * Excluye los "mover dinero", que no son ni ingreso ni gasto.
+     */
+    public function findForAnalysis($idUsuario, $filters = [])
+    {
+        $sql = "SELECT m.id, m.tipo, m.cantidad, m.notas, m.fecha_movimiento,
+                       c.nombre AS cuenta_nombre, c.moneda
+                FROM movimientos m
+                INNER JOIN cuentas c ON m.id_cuenta = c.id
+                WHERE c.id_usuario = :id_usuario
+                AND m.id_transferencia IS NULL";
+
+        $params = ['id_usuario' => $idUsuario];
+
+        $sql .= $this->buildUserFilters(array_intersect_key($filters, array_flip(['fecha_desde', 'fecha_hasta'])), $params);
+        $sql .= " ORDER BY m.fecha_movimiento DESC";
+
+        return $this->db->fetchAll($sql, $params);
+    }
+
+    /**
      * Obtiene estadísticas de movimientos de un usuario
      */
     public function getUserStats($idUsuario, $filters = [])

@@ -7,6 +7,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { AccountsPage } from './pages/AccountsPage';
 import { MovementsPage } from './pages/MovementsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { AnalysisPage } from './pages/AnalysisPage';
 import { AdminPage } from './pages/AdminPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
@@ -40,6 +41,7 @@ function App() {
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="accounts" element={<AccountsPage />} />
         <Route path="movements" element={<MovementsPage />} />
+        <Route path="analysis" element={<AnalysisPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route
           path="admin"

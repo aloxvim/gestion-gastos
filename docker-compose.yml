@@ -46,6 +46,8 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
       SMTP_FROM: ${SMTP_FROM}
+      # Opcional: modelos de Gemini para el análisis con IA, separados por comas (ver .env.example)
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
     networks:
       - gastos_network
 

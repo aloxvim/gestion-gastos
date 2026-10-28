@@ -9,7 +9,8 @@ import {
   User,
   Shield,
   Menu,
-  X
+  X,
+  Sparkles
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -29,6 +30,7 @@ export const Navbar = () => {
     { name: 'Inicio', href: '/dashboard', icon: Home },
     { name: 'Cuentas', href: '/accounts', icon: CreditCard },
     { name: 'Movimientos', href: '/movements', icon: TrendingUp },
+    { name: 'Análisis', href: '/analysis', icon: Sparkles },
   ];
 
   if (isAdmin) {

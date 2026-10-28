@@ -155,6 +155,17 @@ CREATE TABLE IF NOT EXISTS tokens_api (
     INDEX idx_usuario (id_usuario)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Clave API de Google AI Studio para el análisis con IA (una por usuario).
+-- Tabla aparte para que los "SELECT * FROM usuarios" nunca devuelvan la clave.
+-- Ver database/migrations/002_analisis_ia.sql
+CREATE TABLE IF NOT EXISTS configuracion_ia (
+    id_usuario INT PRIMARY KEY,
+    clave_api_gemini VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Trigger para actualizar balance de cuenta al insertar movimiento
 DELIMITER //
 CREATE TRIGGER actualizar_balance_insertar

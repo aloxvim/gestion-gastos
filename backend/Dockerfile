@@ -50,4 +50,7 @@ RUN echo "date.timezone = Europe/Madrid" > /usr/local/etc/php/conf.d/timezone.in
 
 EXPOSE 80
 
-CMD ["apache2-foreground"]
+# ./uploads se monta desde el host y tapa la carpeta preparada arriba. Si no existía,
+# Docker la crea como root y www-data no puede escribir en ella, así que al arrancar
+# se crean las subcarpetas y se le dan a www-data (solo las carpetas, no los ficheros)
+CMD ["sh", "-c", "mkdir -p uploads/profiles uploads/movements && chown www-data:www-data uploads uploads/profiles uploads/movements && exec apache2-foreground"]

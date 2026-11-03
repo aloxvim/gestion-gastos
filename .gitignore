@@ -54,3 +54,7 @@ Thumbs.db
 *~
 backup_antes_de_migrar_20260830.sql
 CLAUDE.md
+
+# Copias de seguridad locales (adjuntos y volcados de la BD)
+uploads_backup*/
+backup_*.sql

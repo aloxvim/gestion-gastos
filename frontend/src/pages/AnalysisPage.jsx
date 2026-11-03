@@ -329,8 +329,8 @@ export const AnalysisPage = () => {
 
               <p className="text-xs text-gray-500">
                 Las categorías las deduce la IA a partir de tus anotaciones y pueden contener
-                errores; los importes los calcula la aplicación. Los «Mover dinero» entre tus
-                cuentas no se incluyen.
+                errores; los importes los calcula la aplicación. No se incluyen los «Mover
+                dinero» entre tus cuentas ni el saldo con el que creaste cada cuenta.
               </p>
             </>
           )}

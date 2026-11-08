@@ -324,28 +324,4 @@ class UserController
             jsonError($e->getMessage(), 400);
         }
     }
-    /**
-     * Obtener sesiones activas
-     */
-    public function getActiveSessions($userId)
-    {
-        try {
-            $sessions = $this->sesionModel->getActiveByUser($userId);
-
-            // Formatear sesiones
-            $formattedSessions = array_map(function ($session) {
-                return [
-                    'ip' => $session['ip'],
-                    'user_agent' => $session['user_agent'],
-                    'created_at' => $session['created_at'],
-                    'expira_en' => $session['expira_en']
-                ];
-            }, $sessions);
-
-            jsonSuccess("Sesiones obtenidas", ['sessions' => $formattedSessions]);
-
-        } catch (\Exception $e) {
-            jsonError($e->getMessage(), 400);
-        }
-    }
 }

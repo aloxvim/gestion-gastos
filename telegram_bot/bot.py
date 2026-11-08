@@ -76,6 +76,9 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+# httpx registra en INFO cada petición con la URL completa, que incluye el
+# token del bot: subirlo a WARNING para que el token no acabe en los logs
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 def main():
     """Función principal del bot"""

@@ -6,19 +6,16 @@
 namespace Controllers;
 
 use Models\Usuario;
-use Models\Movimiento;
 use Core\Database;
 
 class AdminController
 {
     private $usuarioModel;
-    private $movimientoModel;
     private $db;
 
     public function __construct()
     {
         $this->usuarioModel = new Usuario();
-        $this->movimientoModel = new Movimiento();
         $this->db = Database::getInstance();
     }
 
@@ -258,47 +255,6 @@ class AdminController
             logAction($currentUserId, "ha modificado datos del usuario '{$targetUser['nombre_usuario']}'");
 
             jsonSuccess("Usuario actualizado exitosamente");
-
-        } catch (\Exception $e) {
-            jsonError($e->getMessage(), 400);
-        }
-    }
-
-    /**
-     * Eliminar movimientos de un usuario (sin modificar)
-     */
-    public function deleteUserMovement($currentUserId)
-    {
-        try {
-            $currentUser = $this->usuarioModel->findById($currentUserId);
-
-            if (!in_array($currentUser['rol'], ['administrador', 'propietario'])) {
-                jsonError("No tienes permisos para esta acción", 403);
-            }
-
-            $data = json_decode(file_get_contents('php://input'), true);
-
-            if (empty($data['movement_id'])) {
-                jsonError("ID de movimiento no proporcionado", 400);
-            }
-
-            $movimiento = $this->movimientoModel->findById($data['movement_id']);
-
-            if (!$movimiento) {
-                jsonError("Movimiento no encontrado", 404);
-            }
-
-            // Admin no puede eliminar movimientos del propietario
-            $targetUser = $this->usuarioModel->findById($movimiento['id_usuario']);
-            if ($targetUser['rol'] === 'propietario' && $currentUser['rol'] !== 'propietario') {
-                jsonError("No puedes eliminar movimientos del propietario", 403);
-            }
-
-            $this->movimientoModel->delete($data['movement_id']);
-
-            logAction($currentUserId, "ha eliminado un movimiento del usuario '{$targetUser['nombre_usuario']}'");
-
-            jsonSuccess("Movimiento eliminado exitosamente");
 
         } catch (\Exception $e) {
             jsonError($e->getMessage(), 400);

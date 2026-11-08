@@ -248,10 +248,6 @@ class MovementController
                 }
             }
 
-            // DEBUG: Registrar qué datos llegaron
-            error_log("UPDATE MOVEMENT - Data received: " . print_r($data, true));
-            error_log("UPDATE MOVEMENT - FILES: " . print_r($_FILES, true));
-
             // "Mover dinero": se editan sus dos movimientos a la vez y no admite
             // cambiar de tipo
             if (!empty($movimiento['id_transferencia'])) {
@@ -297,9 +293,6 @@ class MovementController
                 $updateData['archivo'] = $_FILES['adjunto'];
             }
 
-            // DEBUG
-            error_log("UPDATE MOVEMENT - Update data: " . print_r($updateData, true));
-
             if (empty($updateData)) {
                 jsonError("No hay datos para actualizar", 400);
             }
@@ -316,7 +309,6 @@ class MovementController
             jsonSuccess("Movimiento actualizado exitosamente");
 
         } catch (\Exception $e) {
-            error_log("UPDATE MOVEMENT - Error: " . $e->getMessage());
             jsonError($e->getMessage(), 400);
         }
     }

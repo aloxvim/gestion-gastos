@@ -1,11 +1,6 @@
 # Backend
 backend/vendor/
 backend/.env
-backend/uploads/*
-!backend/uploads/.gitkeep
-!backend/uploads/profiles/
-backend/uploads/profiles/*
-!backend/uploads/profiles/.gitkeep
 mysql-data/
 # Mes de la última ejecución del contenedor cron
 cron-data/

@@ -223,23 +223,4 @@ class AccountController {
         }
     }
     
-    /**
-     * Buscar cuentas
-     */
-    public function search($userId) {
-        try {
-            $query = $_GET['q'] ?? '';
-            
-            if (empty($query)) {
-                jsonError("Debe proporcionar un término de búsqueda", 400);
-            }
-            
-            $cuentas = $this->cuentaModel->search($userId, $query);
-            
-            jsonSuccess("Búsqueda completada", ['cuentas' => $cuentas]);
-            
-        } catch (\Exception $e) {
-            jsonError($e->getMessage(), 400);
-        }
-    }
 }

@@ -98,15 +98,4 @@ class Etiqueta {
         return $this->db->delete('etiquetas', 'id = :id', ['id' => $id]);
     }
     
-    /**
-     * Obtiene etiquetas no utilizadas
-     */
-    public function getUnused() {
-        $sql = "SELECT e.* 
-                FROM etiquetas e 
-                LEFT JOIN cuentas c ON e.id = c.id_etiqueta 
-                WHERE c.id IS NULL 
-                ORDER BY e.nombre ASC";
-        return $this->db->fetchAll($sql);
-    }
 }

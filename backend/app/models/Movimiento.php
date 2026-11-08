@@ -102,48 +102,6 @@ class Movimiento
     }
 
     /**
-     * Obtiene movimientos de una cuenta
-     */
-    public function findByAccount($idCuenta, $filters = [])
-    {
-        $sql = "SELECT m.* FROM movimientos m WHERE m.id_cuenta = :id_cuenta";
-        $params = ['id_cuenta' => $idCuenta];
-
-        if (isset($filters['tipo'])) {
-            $sql .= " AND m.tipo = :tipo";
-            $params['tipo'] = $filters['tipo'];
-        }
-
-        if (isset($filters['fecha_desde'])) {
-            $sql .= " AND m.fecha_movimiento >= :fecha_desde";
-            $params['fecha_desde'] = $filters['fecha_desde'];
-        }
-
-        if (isset($filters['fecha_hasta'])) {
-            $sql .= " AND m.fecha_movimiento <= :fecha_hasta";
-            $params['fecha_hasta'] = $filters['fecha_hasta'];
-        }
-
-        // Ordenamiento
-        $orderBy = $filters['order_by'] ?? 'fecha_movimiento';
-        $orderDir = $filters['order_dir'] ?? 'DESC';
-        $sql .= " ORDER BY {$orderBy} {$orderDir}";
-
-        // Paginación
-        if (isset($filters['limit'])) {
-            $sql .= " LIMIT :limit";
-            $params['limit'] = (int) $filters['limit'];
-
-            if (isset($filters['offset'])) {
-                $sql .= " OFFSET :offset";
-                $params['offset'] = (int) $filters['offset'];
-            }
-        }
-
-        return $this->db->fetchAll($sql, $params);
-    }
-
-    /**
      * Obtiene todos los movimientos de un usuario
      */
     public function findByUser($idUsuario, $filters = [])
@@ -276,40 +234,6 @@ class Movimiento
     /**
      * Actualiza un movimiento
      */
-    /* public function update($id, $data)
-    {
-        $movimiento = $this->findById($id);
-
-        if (!$movimiento) {
-            throw new Exception("Movimiento no encontrado");
-        }
-
-        // No permitir cambiar la cuenta
-        //unset($data['id_cuenta']);
-
-        // Manejar archivo adjunto si existe
-        if (isset($data['archivo']) && !empty($data['archivo'])) {
-            // Eliminar archivo anterior si existe
-            if ($movimiento['adjunto']) {
-                $this->deleteFile($movimiento['adjunto']);
-            }
-            $data['adjunto'] = $this->uploadFile($data['archivo']);
-            unset($data['archivo']);
-        }
-
-        $updated = $this->db->update('movimientos', $data, 'id = :id', ['id' => $id]);
-
-        if ($updated) {
-            $cuenta = (new Cuenta())->findById($movimiento['id_cuenta']);
-            logAction(
-                $cuenta['id_usuario'],
-                "ha modificado un movimiento en la cuenta '{$cuenta['nombre']}'"
-            );
-        }
-
-        return $updated;
-    } */
-
     public function update($id, $data)
     {
         $movimiento = $this->findById($id);

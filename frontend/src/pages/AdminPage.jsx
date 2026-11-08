@@ -446,7 +446,6 @@ const TagsTab = () => {
 
   const handleDelete = async () => {
     try {
-      console.log('Intentando eliminar etiqueta:', selectedTag);
       await adminAPI.deleteTag(selectedTag.id);
       setIsDeleteDialogOpen(false);
       setSelectedTag(null);

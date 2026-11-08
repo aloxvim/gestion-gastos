@@ -114,29 +114,21 @@ class TagController
     public function delete($userId, $etiquetaId)
     {
         try {
-            error_log("=== DELETE ETIQUETA ===");
-            error_log("User ID: " . $userId);
-            error_log("Etiqueta ID: " . $etiquetaId);
-
             $user = (new \Models\Usuario())->findById($userId);
-            error_log("User rol: " . $user['rol']);
 
             if ($user['rol'] !== 'propietario') {
                 jsonError("Solo el propietario puede eliminar etiquetas", 403);
             }
 
             $etiqueta = $this->etiquetaModel->findById($etiquetaId);
-            error_log("Etiqueta encontrada: " . json_encode($etiqueta));
 
             if (!$etiqueta) {
                 jsonError("Etiqueta no encontrada", 404);
             }
 
             $deleted = $this->etiquetaModel->delete($etiquetaId);
-            error_log("Deleted result: " . $deleted);
 
             if ($deleted === 0) {
-                error_log("ERROR: No se eliminó ninguna fila");
                 jsonError("No se pudo eliminar la etiqueta", 500);
             }
 
@@ -145,7 +137,6 @@ class TagController
             jsonSuccess("Etiqueta eliminada exitosamente");
 
         } catch (\Exception $e) {
-            error_log("EXCEPTION: " . $e->getMessage());
             jsonError($e->getMessage(), 400);
         }
     }

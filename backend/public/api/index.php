@@ -1,16 +1,9 @@
 <?php
 ob_start();
 
-// Headers CORS - APLICAR ANTES DE CUALQUIER COSA
-header('Access-Control-Allow-Origin: http://localhost:3000');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
-header('Access-Control-Allow-Credentials: true');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
+// Sin cabeceras CORS: el navegador llama a la API desde el mismo origen (el
+// nginx del frontend, o el proxy de Vite en desarrollo) y el bot desde el
+// servidor, así que ninguna petición es de otro origen.
 
 require_once '../../config/config.php';
 
@@ -26,7 +19,6 @@ use Core\Router;
 use Core\AuthMiddleware;
 use Core\AdminMiddleware;
 use Core\OwnerMiddleware;
-use Core\CorsMiddleware;
 
 use Controllers\AuthController;
 use Controllers\UserController;
@@ -37,9 +29,6 @@ use Controllers\TagController;
 use Controllers\AnalysisController;
 
 $router = new Router();
-
-// Middleware global CORS
-$router->middleware(CorsMiddleware::class);
 
 // ============================================
 // Rutas públicas (sin autenticación)
@@ -106,12 +95,6 @@ $router->delete('/user/account', function () {
     $controller->deleteAccount($userId);
 }, [AuthMiddleware::class]);
 
-$router->get('/user/sessions', function () {
-    $userId = $GLOBALS['current_user']['id'];
-    $controller = new UserController();
-    $controller->getActiveSessions($userId);
-}, [AuthMiddleware::class]);
-
 // Cuentas
 $router->post('/accounts', function () {
     $userId = $GLOBALS['current_user']['id'];
@@ -129,12 +112,6 @@ $router->get('/accounts/summary', function () {
     $userId = $GLOBALS['current_user']['id'];
     $controller = new AccountController();
     $controller->getSummary($userId);
-}, [AuthMiddleware::class]);
-
-$router->get('/accounts/search', function () {
-    $userId = $GLOBALS['current_user']['id'];
-    $controller = new AccountController();
-    $controller->search($userId);
 }, [AuthMiddleware::class]);
 
 $router->get('/accounts/:id', function ($id) {
@@ -290,12 +267,6 @@ $router->delete('/admin/users', function () {
     $controller->deleteUser($userId);
 }, [AdminMiddleware::class]);
 
-$router->delete('/admin/movements', function () {
-    $userId = $GLOBALS['current_user']['id'];
-    $controller = new AdminController();
-    $controller->deleteUserMovement($userId);
-}, [AdminMiddleware::class]);
-
 // Solo propietario
 $router->get('/admin/activity-log', function () {
     $userId = $GLOBALS['current_user']['id'];
@@ -323,11 +294,8 @@ $router->put('/admin/tags/:id', function ($id) {
 }, [OwnerMiddleware::class]);
 
 $router->delete('/admin/tags/:id', function ($id) {
-    error_log("DELETE CALLBACK EJECUTADO - ID recibido: " . var_export($id, true));
     $userId = $GLOBALS['current_user']['id'];
-    error_log("User ID: " . $userId);
     $controller = new TagController();
-    error_log("Controller creado, llamando a delete()");
     $controller->delete($userId, $id);
 }, [OwnerMiddleware::class]);
 

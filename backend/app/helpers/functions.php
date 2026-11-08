@@ -151,15 +151,6 @@ function getUserAgent()
 }
 
 /**
- * Redirecciona a una URL
- */
-function redirect($url)
-{
-    header("Location: " . $url);
-    exit;
-}
-
-/**
  * Devuelve una respuesta JSON
  */
 function jsonResponse($data, $statusCode = 200)
@@ -341,52 +332,6 @@ function formatDate($date, $format = 'Y-m-d H:i:s')
     } catch (Exception $e) {
         return $date; // Devolver original si hay error
     }
-}
-
-/**
- * Calcula la diferencia de tiempo desde una fecha
- */
-function timeAgo($date)
-{
-    $datetime = new DateTime($date);
-    $now = new DateTime();
-    $interval = $now->diff($datetime);
-
-    if ($interval->y > 0) {
-        return $interval->y . ' año' . ($interval->y > 1 ? 's' : '');
-    } elseif ($interval->m > 0) {
-        return $interval->m . ' mes' . ($interval->m > 1 ? 'es' : '');
-    } elseif ($interval->d > 0) {
-        return $interval->d . ' día' . ($interval->d > 1 ? 's' : '');
-    } elseif ($interval->h > 0) {
-        return $interval->h . ' hora' . ($interval->h > 1 ? 's' : '');
-    } elseif ($interval->i > 0) {
-        return $interval->i . ' minuto' . ($interval->i > 1 ? 's' : '');
-    } else {
-        return 'hace unos segundos';
-    }
-}
-
-/**
- * Valida un token CSRF
- */
-function validateCSRFToken($token)
-{
-    if (!isset($_SESSION['csrf_token'])) {
-        return false;
-    }
-    return hash_equals($_SESSION['csrf_token'], $token);
-}
-
-/**
- * Genera un token CSRF
- */
-function generateCSRFToken()
-{
-    if (!isset($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = generateToken(32);
-    }
-    return $_SESSION['csrf_token'];
 }
 
 /**

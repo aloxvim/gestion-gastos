@@ -80,18 +80,15 @@ export const userAPI = {
   toggle2FA: (data) => api.put('/user/toggle-2fa', data),
   requestAdmin: () => api.post('/user/request-admin'),
   deleteAccount: (data) => api.delete('/user/account', { data }),
-  getSessions: () => api.get('/user/sessions'),
 };
 
 // Accounts
 export const accountsAPI = {
   create: (data) => api.post('/accounts', data),
   getAll: (params) => api.get('/accounts', { params }),
-  getOne: (id) => api.get(`/accounts/${id}`),
   update: (id, data) => api.put(`/accounts/${id}`, data),
   delete: (id) => api.delete(`/accounts/${id}`),
   getSummary: () => api.get('/accounts/summary'),
-  search: (query) => api.get('/accounts/search', { params: { q: query } }),
 };
 
 // Movements
@@ -103,7 +100,6 @@ export const movementsAPI = {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
   getAll: (params) => api.get('/movements', { params }),
-  getOne: (id) => api.get(`/movements/${id}`),
   update: (id, formData) => api.put(`/movements/${id}`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
@@ -148,7 +144,6 @@ export const adminAPI = {
   changeUserRole: (data) => api.put('/admin/users/role', data),
   updateUser: (data) => api.put('/admin/users/update', data),
   deleteUser: (data) => api.delete('/admin/users', { data }),
-  deleteUserMovement: (data) => api.delete('/admin/movements', { data }),
   getActivityLog: (params) => api.get('/admin/activity-log', { params }),
   getStats: () => api.get('/admin/stats'),
   createTag: (data) => api.post('/admin/tags', data),

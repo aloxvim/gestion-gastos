@@ -239,21 +239,4 @@ class Cuenta
         return $this->db->fetchOne($sql, ['id_usuario' => $idUsuario]);
     }
 
-    /**
-     * Busca cuentas por nombre
-     */
-    public function search($idUsuario, $query)
-    {
-        $sql = "SELECT c.*, e.nombre as etiqueta_nombre 
-                FROM cuentas c 
-                LEFT JOIN etiquetas e ON c.id_etiqueta = e.id 
-                WHERE c.id_usuario = :id_usuario 
-                AND (c.nombre LIKE :query OR c.descripcion LIKE :query)
-                ORDER BY c.nombre ASC";
-
-        return $this->db->fetchAll($sql, [
-            'id_usuario' => $idUsuario,
-            'query' => '%' . $query . '%'
-        ]);
-    }
 }

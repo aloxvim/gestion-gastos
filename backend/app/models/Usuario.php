@@ -308,6 +308,22 @@ class Usuario
     }
 
     /**
+     * Fecha del último aviso de inactividad ($accion) registrado en el log de
+     * actividad desde $desde (normalmente su último logueo), o null si no hay.
+     * Así se evita repetir correos sin añadir columnas a la BD.
+     */
+    public function getInactivityNoticeSince($id, $accion, $desde)
+    {
+        $fecha = $this->db->fetchColumn(
+            "SELECT MAX(fecha) FROM movimientos_pagina
+             WHERE id_usuario = :id AND accion = :accion AND fecha >= :desde",
+            ['id' => $id, 'accion' => $accion, 'desde' => $desde]
+        );
+
+        return $fecha ?: null;
+    }
+
+    /**
      * Subir foto de perfil
      */
     private function uploadProfilePicture($file)

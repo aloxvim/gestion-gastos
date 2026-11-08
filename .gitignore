@@ -7,6 +7,8 @@ backend/uploads/*
 backend/uploads/profiles/*
 !backend/uploads/profiles/.gitkeep
 mysql-data/
+# Mes de la última ejecución del contenedor cron
+cron-data/
 
 # Frontend
 frontend/node_modules/

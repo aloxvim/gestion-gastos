@@ -36,7 +36,7 @@ services:
       - "8082:80"
     depends_on:
       - db
-    environment:
+    environment: &backend-env
       DB_HOST: db
       DB_NAME: gastos_db
       DB_USER: gastos_user
@@ -46,8 +46,34 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
       SMTP_FROM: ${SMTP_FROM}
+      # URL pública del frontend: la usan los enlaces de los correos (avisos de inactividad, etc.)
+      APP_URL: ${APP_URL:-http://localhost:3000}
       # Opcional: modelos de Gemini para el análisis con IA, separados por comas (ver .env.example)
       GEMINI_MODEL: ${GEMINI_MODEL:-}
+      TZ: Europe/Madrid
+    networks:
+      - gastos_network
+
+  # Tareas programadas: ejecuta backend/scripts/cron.php una vez al mes (avisos y
+  # eliminación de usuarios inactivos, limpieza de sesiones/códigos/tokens caducados).
+  # Misma imagen y variables que el backend; ver backend/scripts/programador_mensual.sh
+  cron:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: gastos_cron
+    restart: unless-stopped
+    command: ["sh", "/var/www/html/scripts/programador_mensual.sh"]
+    # La imagen php:apache usa SIGWINCH (parada de Apache); el script espera SIGTERM
+    stop_signal: SIGTERM
+    volumes:
+      # Necesario para borrar los adjuntos y fotos de los usuarios eliminados
+      - ./uploads:/var/www/html/uploads
+      # Mes de la última ejecución (ver programador_mensual.sh)
+      - ./cron-data:/var/lib/gastos-cron
+    depends_on:
+      - db
+    environment: *backend-env
     networks:
       - gastos_network
 

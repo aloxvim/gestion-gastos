@@ -4,19 +4,16 @@ namespace Controllers;
 
 use Models\Usuario;
 use Models\Sesion;
-use Models\TokenAPI;
 
 class UserController
 {
     private $usuarioModel;
     private $sesionModel;
-    private $tokenAPIModel;
 
     public function __construct()
     {
         $this->usuarioModel = new Usuario();
         $this->sesionModel = new Sesion();
-        $this->tokenAPIModel = new TokenAPI();
     }
 
     /**
@@ -253,17 +250,16 @@ class UserController
 
             $enable = (bool) $data['enable'];
 
-            // Si va a activar, verificar contraseña
-            /* if ($enable) {
-                if (empty($data['contrasena'])) {
-                    jsonError("Debe confirmar su contraseña", 400);
-                }
+            // Activar o desactivar la verificación en 2 pasos exige la contraseña,
+            // para que nadie la quite desde una sesión que se haya dejado abierta
+            if (empty($data['contrasena'])) {
+                jsonError("Debes confirmar tu contraseña", 400);
+            }
 
-                $user = $this->usuarioModel->findById($userId);
-                if (!verifyPassword($data['contrasena'], $user['contrasena'])) {
-                    jsonError("Contraseña incorrecta", 401);
-                }
-            } */
+            $user = $this->usuarioModel->findById($userId);
+            if (!verifyPassword($data['contrasena'], $user['contrasena'])) {
+                jsonError("Contraseña incorrecta", 400); // no 401: cerraría la sesión
+            }
 
             $this->usuarioModel->toggle2FA($userId, $enable);
 
@@ -347,74 +343,6 @@ class UserController
             }, $sessions);
 
             jsonSuccess("Sesiones obtenidas", ['sessions' => $formattedSessions]);
-
-        } catch (\Exception $e) {
-            jsonError($e->getMessage(), 400);
-        }
-    }
-
-    /**
-     * Generar token API
-     */
-    public function generateAPIToken($userId)
-    {
-        try {
-            $data = json_decode(file_get_contents('php://input'), true);
-            $nombre = $data['nombre'] ?? 'Bot Telegram';
-
-            $token = $this->tokenAPIModel->generate($userId, $nombre);
-
-            jsonSuccess("Token generado exitosamente", ['token' => $token]);
-
-        } catch (\Exception $e) {
-            jsonError($e->getMessage(), 400);
-        }
-    }
-
-    /**
-     * Listar tokens API
-     */
-    public function listAPITokens($userId)
-    {
-        try {
-            $tokens = $this->tokenAPIModel->getByUser($userId);
-
-            // Ocultar parte del token por seguridad
-            $formattedTokens = array_map(function ($token) {
-                return [
-                    'id' => $token['id'],
-                    'nombre' => $token['nombre'],
-                    'token_preview' => substr($token['token'], 0, 8) . '...' . substr($token['token'], -8),
-                    'activo' => $token['activo'],
-                    'ultimo_uso' => $token['ultimo_uso'],
-                    'created_at' => $token['created_at']
-                ];
-            }, $tokens);
-
-            jsonSuccess("Tokens obtenidos", ['tokens' => $formattedTokens]);
-
-        } catch (\Exception $e) {
-            jsonError($e->getMessage(), 400);
-        }
-    }
-
-    /**
-     * Eliminar token API
-     */
-    public function deleteAPIToken($userId)
-    {
-        try {
-            $data = json_decode(file_get_contents('php://input'), true);
-
-            if (empty($data['token_id'])) {
-                jsonError("ID del token no proporcionado", 400);
-            }
-
-            $this->tokenAPIModel->delete($data['token_id'], $userId);
-
-            logAction($userId, 'ha eliminado un token API');
-
-            jsonSuccess("Token eliminado exitosamente");
 
         } catch (\Exception $e) {
             jsonError($e->getMessage(), 400);

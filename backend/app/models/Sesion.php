@@ -144,6 +144,13 @@ class Codigo2FA {
     }
     
     /**
+     * Anula los códigos pendientes de un usuario (demasiados intentos fallidos)
+     */
+    public function invalidate($idUsuario) {
+        return $this->db->delete('codigos_2fa', 'id_usuario = :id AND usado = 0', ['id' => $idUsuario]);
+    }
+
+    /**
      * Elimina códigos expirados
      */
     public function deleteExpired() {
@@ -201,83 +208,5 @@ class TokenRecuperacion {
      */
     public function deleteExpired() {
         return $this->db->delete('tokens_recuperacion', 'expira_en < NOW()');
-    }
-}
-
-class TokenAPI {
-    private $db;
-    
-    public function __construct() {
-        $this->db = Database::getInstance();
-    }
-    
-    /**
-     * Genera un token API
-     */
-    public function generate($idUsuario, $nombre = 'Bot Telegram') {
-        $token = generateToken(32);
-        
-        $id = $this->db->insert('tokens_api', [
-            'id_usuario' => $idUsuario,
-            'token' => $token,
-            'nombre' => $nombre
-        ]);
-        
-        logAction($idUsuario, "ha generado un token API para '{$nombre}'");
-        
-        return $token;
-    }
-    
-    /**
-     * Valida un token API
-     */
-    public function validate($token) {
-        $sql = "SELECT t.*, u.* 
-                FROM tokens_api t 
-                INNER JOIN usuarios u ON t.id_usuario = u.id 
-                WHERE t.token = :token 
-                AND t.activo = 1";
-        
-        $result = $this->db->fetchOne($sql, ['token' => $token]);
-        
-        if ($result) {
-            // Actualizar último uso
-            $this->db->update(
-                'tokens_api',
-                ['ultimo_uso' => date('Y-m-d H:i:s')],
-                'token = :token',
-                ['token' => $token]
-            );
-        }
-        
-        return $result;
-    }
-    
-    /**
-     * Desactiva un token API
-     */
-    public function deactivate($token) {
-        return $this->db->update('tokens_api', ['activo' => 0], 'token = :token', ['token' => $token]);
-    }
-    
-    /**
-     * Obtiene todos los tokens de un usuario
-     */
-    public function getByUser($idUsuario) {
-        $sql = "SELECT * FROM tokens_api 
-                WHERE id_usuario = :id 
-                ORDER BY created_at DESC";
-        
-        return $this->db->fetchAll($sql, ['id' => $idUsuario]);
-    }
-    
-    /**
-     * Elimina un token
-     */
-    public function delete($id, $idUsuario) {
-        return $this->db->delete('tokens_api', 'id = :id AND id_usuario = :id_usuario', [
-            'id' => $id,
-            'id_usuario' => $idUsuario
-        ]);
     }
 }

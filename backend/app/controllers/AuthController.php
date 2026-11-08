@@ -9,6 +9,12 @@ use Models\TokenRecuperacion;
 
 class AuthController
 {
+    // Fallos de contraseña permitidos por usuario e IP antes de bloquear un rato
+    private const MAX_FALLOS_LOGIN = 10;
+    private const BLOQUEO_LOGIN = 900; // 15 minutos
+    // Fallos permitidos por cada código 2FA; al llegar se anula el código
+    private const MAX_FALLOS_2FA = 5;
+
     private $usuarioModel;
     private $sesionModel;
     private $codigo2FAModel;
@@ -103,6 +109,13 @@ class AuthController
                 jsonError("Usuario o contraseña incorrectos", 401);
             }
 
+            // Límite de intentos por usuario e IP, contra ataques de fuerza bruta
+            $claveIntentos = 'login:' . getClientIP() . ':' . mb_strtolower(trim($data['nombre_usuario']));
+            $espera = tooManyAttempts($claveIntentos, self::MAX_FALLOS_LOGIN);
+            if ($espera) {
+                jsonError("Demasiados intentos fallidos. Inténtalo de nuevo en " . ceil($espera / 60) . " minutos", 429);
+            }
+
             // Verificar credenciales
             $user = $this->usuarioModel->verifyCredentials(
                 $data['nombre_usuario'],
@@ -110,13 +123,17 @@ class AuthController
             );
 
             if (!$user) {
+                registerFailedAttempt($claveIntentos, self::BLOQUEO_LOGIN);
                 jsonError("Usuario o contraseña incorrectos", 401);
             }
 
+            clearFailedAttempts($claveIntentos);
+
             // Verificar si tiene 2FA activado
             if ($user['autenticacion_2fa']) {
-                // Generar código 2FA
+                // Generar código 2FA (sustituye al anterior, con sus intentos a cero)
                 $codigo = $this->codigo2FAModel->generate($user['id']);
+                clearFailedAttempts('2fa:' . $user['id']);
 
                 // Enviar correo con el código
                 $subject = "Código de verificación - Gestión de Gastos";
@@ -173,10 +190,19 @@ class AuthController
                 jsonError("Datos incompletos", 400);
             }
 
-            // Validar código
+            // Validar código. Un código de 6 cifras se podría adivinar probando
+            // en bucle, así que tras MAX_FALLOS_2FA fallos se anula y hay que
+            // volver a iniciar sesión para recibir otro.
+            $claveIntentos = '2fa:' . (int) $data['user_id'];
             if (!$this->codigo2FAModel->validate($data['user_id'], $data['codigo'])) {
+                if (registerFailedAttempt($claveIntentos, TFA_CODE_EXPIRY) >= self::MAX_FALLOS_2FA) {
+                    $this->codigo2FAModel->invalidate($data['user_id']);
+                    clearFailedAttempts($claveIntentos);
+                    jsonError("Demasiados intentos fallidos. Vuelve a iniciar sesión para recibir un código nuevo", 401);
+                }
                 jsonError("Código incorrecto o expirado", 401);
             }
+            clearFailedAttempts($claveIntentos);
 
             // Obtener usuario
             $user = $this->usuarioModel->findById($data['user_id']);

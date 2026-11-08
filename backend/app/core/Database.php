@@ -21,11 +21,14 @@ class Database {
             
             $this->connection = new PDO($dsn, DB_USER, DB_PASS, $options);
         } catch (PDOException $e) {
-            if (DEBUG_MODE) {
-                die("Error de conexión: " . $e->getMessage());
-            } else {
-                die("Error al conectar con la base de datos");
+            error_log("Error de conexión a la BD: " . $e->getMessage());
+            // En línea de comandos (cron.php) salir con código de error, para
+            // que programador_mensual.sh lo reintente en vez de darlo por hecho
+            // (el mensaje ya sale por la consola con error_log)
+            if (PHP_SAPI === 'cli') {
+                exit(1);
             }
+            die(DEBUG_MODE ? "Error de conexión: " . $e->getMessage() : "Error al conectar con la base de datos");
         }
     }
     
@@ -46,11 +49,12 @@ class Database {
             $stmt->execute($params);
             return $stmt;
         } catch (PDOException $e) {
+            // El detalle (SQL, columnas...) va al log; al cliente solo con DEBUG_MODE
+            error_log("Error en query: " . $e->getMessage());
             if (DEBUG_MODE) {
                 throw new \Exception("Error en query: " . $e->getMessage());
-            } else {
-                throw new \Exception("Error en la consulta a la base de datos");
             }
+            throw new \Exception("Error en la consulta a la base de datos");
         }
     }
     

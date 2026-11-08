@@ -223,7 +223,7 @@ const UsersTab = ({ isOwner, currentUser }) => {
                     {u.correo_electronico}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {u.rol === 'propietario' ? (
+                    {u.rol === 'propietario' || (u.rol === 'administrador' && !isOwner) ? (
                       <Badge variant="primary">{u.rol}</Badge>
                     ) : u.rol === 'solicita' && !isOwner ? (
                       <Badge variant="warning">{u.rol}</Badge>
@@ -250,7 +250,8 @@ const UsersTab = ({ isOwner, currentUser }) => {
                     {u.ultimo_logueo ? formatDate(u.ultimo_logueo) : 'Nunca'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
-                    {u.rol !== 'propietario' && u.id !== currentUser?.id && (
+                    {/* Un administrador solo gestiona usuarios normales; a los administradores, solo el propietario */}
+                    {u.rol !== 'propietario' && u.id !== currentUser?.id && (isOwner || u.rol !== 'administrador') && (
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => {
@@ -405,7 +406,7 @@ const EditUserModal = ({ isOpen, onClose, user, onSuccess }) => {
           </label>
         </div>
         <div className="flex gap-3 pt-4">
-          <Button variant="secondary" onClick={onClose} className="flex-1">
+          <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
             Cancelar
           </Button>
           <Button type="submit" loading={loading} className="flex-1">
@@ -603,7 +604,7 @@ const TagModal = ({ isOpen, onClose, onSuccess, tag = null }) => {
           required
         />
         <div className="flex gap-3">
-          <Button variant="secondary" onClick={onClose} className="flex-1">
+          <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
             Cancelar
           </Button>
           <Button type="submit" loading={loading} className="flex-1">

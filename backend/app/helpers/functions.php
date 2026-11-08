@@ -60,25 +60,86 @@ function generateNumericCode($length = 6)
 
 /**
  * Obtiene la IP del cliente
+ *
+ * Desde el navegador las peticiones llegan a través del nginx del frontend,
+ * que pone la IP real en X-Real-IP. Solo se confía en esa cabecera si la
+ * petición viene de ese contenedor: el backend también está publicado (puerto
+ * 8082) y cualquiera que lo llame directamente podría inventarse la cabecera.
  */
 function getClientIP()
 {
-    $ip = '';
-
-    if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
-        $ip = $_SERVER['HTTP_CLIENT_IP'];
-    } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
-    } else {
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    static $proxyIp = null;
+    if ($proxyIp === null) {
+        $resuelto = gethostbyname('frontend');
+        $proxyIp = $resuelto !== 'frontend' ? $resuelto : '';
     }
 
-    // Validar IP
-    if (filter_var($ip, FILTER_VALIDATE_IP)) {
-        return $ip;
+    $remote = $_SERVER['REMOTE_ADDR'] ?? '';
+    $realIp = $_SERVER['HTTP_X_REAL_IP'] ?? '';
+
+    if ($remote !== '' && $remote === $proxyIp && filter_var($realIp, FILTER_VALIDATE_IP)) {
+        return $realIp;
     }
 
-    return '0.0.0.0';
+    return filter_var($remote, FILTER_VALIDATE_IP) ? $remote : '0.0.0.0';
+}
+
+/**
+ * Límite de intentos fallidos (login, código 2FA) sin tocar la BD: cada clave
+ * guarda su contador en un archivo temporal del contenedor. Si el contenedor
+ * se reinicia los contadores vuelven a cero, lo que aquí es aceptable.
+ */
+function rateLimitFile($clave)
+{
+    $dir = sys_get_temp_dir() . '/gastos_intentos';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0700, true);
+    }
+    return $dir . '/' . sha1($clave);
+}
+
+/**
+ * Lee el estado de una clave: ['intentos' => n, 'hasta' => timestamp]
+ */
+function rateLimitRead($clave)
+{
+    $datos = @json_decode((string) @file_get_contents(rateLimitFile($clave)), true);
+    if (!is_array($datos) || ($datos['hasta'] ?? 0) < time()) {
+        return ['intentos' => 0, 'hasta' => 0];
+    }
+    return $datos;
+}
+
+/**
+ * Segundos que quedan de bloqueo si la clave ya alcanzó $maximo fallos, o 0
+ */
+function tooManyAttempts($clave, $maximo)
+{
+    $datos = rateLimitRead($clave);
+    return $datos['intentos'] >= $maximo ? max(1, $datos['hasta'] - time()) : 0;
+}
+
+/**
+ * Suma un fallo a la clave; la ventana de $segundos empieza con el primer fallo.
+ * Devuelve el número de fallos acumulados.
+ */
+function registerFailedAttempt($clave, $segundos)
+{
+    $datos = rateLimitRead($clave);
+    if ($datos['intentos'] === 0) {
+        $datos['hasta'] = time() + $segundos;
+    }
+    $datos['intentos']++;
+    @file_put_contents(rateLimitFile($clave), json_encode($datos), LOCK_EX);
+    return $datos['intentos'];
+}
+
+/**
+ * Borra los fallos de una clave (tras un acierto)
+ */
+function clearFailedAttempts($clave)
+{
+    @unlink(rateLimitFile($clave));
 }
 
 /**
@@ -420,9 +481,7 @@ function sendEmail($to, $subject, $body, $isHtml = true)
         $mail->send();
         return true;
     } catch (Exception $e) {
-        if (DEBUG_MODE) {
-            error_log("Error al enviar email: " . $mail->ErrorInfo);
-        }
+        error_log("Error al enviar email a {$to}: " . $mail->ErrorInfo);
         return false;
     }
 }

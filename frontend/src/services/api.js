@@ -81,9 +81,6 @@ export const userAPI = {
   requestAdmin: () => api.post('/user/request-admin'),
   deleteAccount: (data) => api.delete('/user/account', { data }),
   getSessions: () => api.get('/user/sessions'),
-  generateAPIToken: (data) => api.post('/user/api-tokens', data),
-  listAPITokens: () => api.get('/user/api-tokens'),
-  deleteAPIToken: (data) => api.delete('/user/api-tokens', { data }),
 };
 
 // Accounts

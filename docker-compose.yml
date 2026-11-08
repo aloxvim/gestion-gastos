@@ -48,6 +48,8 @@ services:
       SMTP_FROM: ${SMTP_FROM}
       # URL pública del frontend: la usan los enlaces de los correos (avisos de inactividad, etc.)
       APP_URL: ${APP_URL:-http://localhost:3000}
+      # Solo para depurar: muestra al cliente los errores de PHP y de la BD (ver .env.example)
+      DEBUG_MODE: ${DEBUG_MODE:-false}
       # Opcional: modelos de Gemini para el análisis con IA, separados por comas (ver .env.example)
       GEMINI_MODEL: ${GEMINI_MODEL:-}
       TZ: Europe/Madrid

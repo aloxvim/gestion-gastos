@@ -7,16 +7,14 @@ if (file_exists($autoloadPath)) {
     require_once $autoloadPath;
 }
 
-// Mostrar errores en desarrollo (cambiar a false en producción)
-define('DEBUG_MODE', true);
+// Modo depuración: solo si DEBUG_MODE=true en el entorno (ver .env.example).
+// Con él desactivado los errores no se muestran al cliente (los de la BD dan un
+// mensaje genérico), pero se siguen registrando en el log del contenedor.
+define('DEBUG_MODE', strtolower((string) getenv('DEBUG_MODE')) === 'true');
 
-if (DEBUG_MODE) {
-    error_reporting(E_ALL);
-    ini_set('display_errors', 1);
-} else {
-    error_reporting(0);
-    ini_set('display_errors', 0);
-}
+error_reporting(E_ALL);
+ini_set('log_errors', 1);
+ini_set('display_errors', DEBUG_MODE ? 1 : 0);
 
 // Configuración de zona horaria
 date_default_timezone_set('Europe/Madrid');

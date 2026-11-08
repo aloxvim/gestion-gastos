@@ -79,6 +79,19 @@ class AdminController
             }
 
             $targetUser = $this->usuarioModel->findById($data['user_id']);
+            if (!$targetUser) {
+                jsonError("Usuario no encontrado", 404);
+            }
+
+            if (!in_array($data['new_role'], ['usuario', 'administrador', 'solicita'], true)) {
+                jsonError("Rol no válido", 400);
+            }
+
+            // Un administrador solo gestiona usuarios normales: no puede cambiar
+            // el rol de otro administrador (solo el propietario)
+            if ($targetUser['rol'] === 'administrador' && $currentUser['rol'] !== 'propietario') {
+                jsonError("Solo el propietario puede cambiar el rol de un administrador", 403);
+            }
 
             // Solo propietario puede dar rol de administrador
             if ($data['new_role'] === 'administrador' && $currentUser['rol'] !== 'propietario') {
@@ -130,6 +143,9 @@ class AdminController
             }
 
             $targetUser = $this->usuarioModel->findById($data['user_id']);
+            if (!$targetUser) {
+                jsonError("Usuario no encontrado", 404);
+            }
 
             // Admin no puede eliminar al propietario
             if ($targetUser['rol'] === 'propietario') {
@@ -173,19 +189,47 @@ class AdminController
             }
 
             $targetUser = $this->usuarioModel->findById($data['user_id']);
+            if (!$targetUser) {
+                jsonError("Usuario no encontrado", 404);
+            }
 
-            // Admin no puede modificar al propietario
+            // Admin no puede modificar al propietario ni a otros administradores
+            // (igual que no puede eliminarlos): podría cambiarles la contraseña
+            // o el correo y quedarse con su cuenta
             if ($targetUser['rol'] === 'propietario' && $currentUser['rol'] !== 'propietario') {
                 jsonError("No puedes modificar al propietario", 403);
             }
+            if ($targetUser['rol'] === 'administrador' && $currentUser['rol'] !== 'propietario') {
+                jsonError("Solo el propietario puede modificar a un administrador", 403);
+            }
 
-            // Preparar datos de actualización
+            // Preparar datos de actualización (solo lo que cambia)
             $updateData = [];
-            $allowedFields = ['nombre_usuario', 'correo_electronico', 'autenticacion_2fa'];
 
-            foreach ($allowedFields as $field) {
-                if (isset($data[$field])) {
-                    $updateData[$field] = $data[$field];
+            if (isset($data['nombre_usuario'])) {
+                $nombreUsuario = sanitize($data['nombre_usuario']);
+                if (mb_strlen($nombreUsuario) < 3 || mb_strlen($nombreUsuario) > 50) {
+                    jsonError("El nombre de usuario debe tener entre 3 y 50 caracteres", 400);
+                }
+                if ($nombreUsuario !== $targetUser['nombre_usuario']) {
+                    $updateData['nombre_usuario'] = $nombreUsuario;
+                }
+            }
+
+            if (isset($data['correo_electronico'])) {
+                $correo = trim($data['correo_electronico']);
+                if (!isValidEmail($correo) || mb_strlen($correo) > 200) {
+                    jsonError("El correo electrónico no es válido", 400);
+                }
+                if ($correo !== $targetUser['correo_electronico']) {
+                    $updateData['correo_electronico'] = $correo;
+                }
+            }
+
+            if (isset($data['autenticacion_2fa'])) {
+                $tfa = $data['autenticacion_2fa'] ? 1 : 0;
+                if ($tfa !== (int) $targetUser['autenticacion_2fa']) {
+                    $updateData['autenticacion_2fa'] = $tfa;
                 }
             }
 
@@ -196,14 +240,20 @@ class AdminController
                 if (!empty($passwordErrors)) {
                     jsonError(implode('. ', $passwordErrors), 400);
                 }
+
                 $updateData['contrasena'] = $data['nueva_contrasena'];
             }
 
             if (empty($updateData)) {
-                jsonError("No hay datos para actualizar", 400);
+                jsonError("No has cambiado ningún dato", 400);
             }
 
             $this->usuarioModel->update($data['user_id'], $updateData);
+
+            // Si se le cambia la contraseña, cerrar sus sesiones abiertas
+            if (isset($updateData['contrasena'])) {
+                (new \Models\Sesion())->deleteAllByUser($data['user_id']);
+            }
 
             logAction($currentUserId, "ha modificado datos del usuario '{$targetUser['nombre_usuario']}'");
 

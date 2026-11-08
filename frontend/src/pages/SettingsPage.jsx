@@ -15,7 +15,6 @@ import {
   Shield,
   Camera,
   Trash2,
-  Key,
   LogOut,
   Palette,
   Sun,
@@ -313,7 +312,6 @@ export const SettingsPage = () => {
   const tabs = [
     { id: 'profile', name: 'Perfil', icon: User },
     { id: 'security', name: 'Seguridad', icon: Shield },
-    { id: 'api', name: 'API Tokens', icon: Key },
     { id: 'ai', name: 'Análisis IA', icon: Sparkles },
     { id: 'appearance', name: 'Apariencia', icon: Palette },
     ...(user?.rol === 'usuario' || user?.rol === 'solicita' ? [{ id: 'role', name: 'Rol', icon: Shield }] : []),
@@ -351,7 +349,6 @@ export const SettingsPage = () => {
       {/* Tab Content */}
       {activeTab === 'profile' && <ProfileTab user={user} updateUser={updateUser} />}
       {activeTab === 'security' && <SecurityTab user={user} updateUser={updateUser} />}
-      {activeTab === 'api' && <APITokensTab />}
       {activeTab === 'ai' && <AITab />}
       {activeTab === 'appearance' && <AppearanceTab />}
       {activeTab === 'role' && <RoleRequestTab user={user} />}
@@ -546,10 +543,23 @@ const SecurityTab = ({ user, updateUser }) => {
     }
   };
 
-  const handle2FAToggle = async () => {
+  // Activar/desactivar 2FA pide la contraseña (el backend la exige)
+  const [is2FAModalOpen, setIs2FAModalOpen] = useState(false);
+  const [contrasena2FA, setContrasena2FA] = useState('');
+  const [loading2FA, setLoading2FA] = useState(false);
+
+  const close2FAModal = () => {
+    setIs2FAModalOpen(false);
+    setContrasena2FA('');
+  };
+
+  const handle2FAToggle = async (e) => {
+    e.preventDefault();
+    setLoading2FA(true);
     try {
       await userAPI.toggle2FA({
         enable: !user.autenticacion_2fa,
+        contrasena: contrasena2FA,
       });
       await updateUser();
       toast.success(
@@ -557,9 +567,12 @@ const SecurityTab = ({ user, updateUser }) => {
           ? '2FA desactivado'
           : '2FA activado'
       );
+      close2FAModal();
     } catch (error) {
       const message = error.response?.data?.message || 'Error al cambiar 2FA';
       toast.error(message);
+    } finally {
+      setLoading2FA(false);
     }
   };
 
@@ -584,12 +597,49 @@ const SecurityTab = ({ user, updateUser }) => {
           </div>
           <Button
             variant={user?.autenticacion_2fa ? 'danger' : 'primary'}
-            onClick={handle2FAToggle}
+            onClick={() => setIs2FAModalOpen(true)}
           >
             {user?.autenticacion_2fa ? 'Desactivar' : 'Activar'}
           </Button>
         </div>
       </Card>
+
+      <Modal
+        isOpen={is2FAModalOpen}
+        onClose={close2FAModal}
+        title={user?.autenticacion_2fa ? 'Desactivar verificación en 2 pasos' : 'Activar verificación en 2 pasos'}
+        size="sm"
+      >
+        <form onSubmit={handle2FAToggle} className="space-y-4">
+          <p className="text-sm text-gray-600">
+            {user?.autenticacion_2fa
+              ? 'Al desactivarla, para entrar solo hará falta tu contraseña.'
+              : 'Al iniciar sesión recibirás un código en tu correo electrónico.'}
+          </p>
+          <Input
+            label="Contraseña actual"
+            type="password"
+            value={contrasena2FA}
+            onChange={(e) => setContrasena2FA(e.target.value)}
+            placeholder="Confirma tu contraseña"
+            autoFocus
+            required
+          />
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={close2FAModal} className="flex-1">
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              variant={user?.autenticacion_2fa ? 'danger' : 'primary'}
+              loading={loading2FA}
+              className="flex-1"
+            >
+              {user?.autenticacion_2fa ? 'Desactivar' : 'Activar'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Change Password */}
       <Card>
@@ -640,129 +690,6 @@ const SecurityTab = ({ user, updateUser }) => {
             Cambiar contraseña
           </Button>
         </form>
-      </Card>
-    </div>
-  );
-};
-
-// API Tokens Tab
-const APITokensTab = () => {
-  const [tokens, setTokens] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [newTokenName, setNewTokenName] = useState('');
-  const [generatedToken, setGeneratedToken] = useState(null);
-
-  useEffect(() => {
-    loadTokens();
-  }, []);
-
-  const loadTokens = async () => {
-    try {
-      const response = await userAPI.listAPITokens();
-      setTokens(response.data.data.tokens);
-    } catch (error) {
-      toast.error('Error al cargar tokens');
-    }
-  };
-
-  const handleGenerate = async () => {
-    if (!newTokenName.trim()) {
-      toast.error('Ingresa un nombre para el token');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const response = await userAPI.generateAPIToken({ nombre: newTokenName });
-      setGeneratedToken(response.data.data.token);
-      setNewTokenName('');
-      await loadTokens();
-      toast.success('Token generado');
-    } catch (error) {
-      toast.error('Error al generar token');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = async (tokenId) => {
-    if (!confirm('¿Eliminar este token?')) return;
-
-    try {
-      await userAPI.deleteAPIToken({ token_id: tokenId });
-      await loadTokens();
-      toast.success('Token eliminado');
-    } catch (error) {
-      toast.error('Error al eliminar token');
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <Card>
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">
-          Tokens de API
-        </h2>
-        <p className="text-sm text-gray-600 mb-4">
-          Usa estos tokens para acceder a la API desde aplicaciones externas
-        </p>
-
-        {generatedToken && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-            <p className="text-sm font-medium text-green-900 mb-2">
-              ✅ Token generado. Guárdalo en un lugar seguro:
-            </p>
-            <code className="block p-3 bg-surface rounded border border-green-300 text-sm break-all">
-              {generatedToken}
-            </code>
-            <p className="text-xs text-green-800 mt-2">
-              No podrás volver a ver este token
-            </p>
-          </div>
-        )}
-
-        <div className="flex gap-3 mb-6">
-          <Input
-            placeholder="Nombre del token"
-            value={newTokenName}
-            onChange={(e) => setNewTokenName(e.target.value)}
-          />
-          <Button onClick={handleGenerate} loading={loading}>
-            Generar
-          </Button>
-        </div>
-
-        <div className="space-y-3">
-          {tokens.map((token) => (
-            <div
-              key={token.id}
-              className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
-            >
-              <div>
-                <p className="font-medium text-gray-900">{token.nombre}</p>
-                <p className="text-sm text-gray-600">
-                  <code>{token.token_preview}</code>
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Creado: {new Date(token.created_at).toLocaleDateString()}
-                </p>
-              </div>
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={() => handleDelete(token.id)}
-              >
-                <Trash2 size={16} />
-              </Button>
-            </div>
-          ))}
-          {tokens.length === 0 && (
-            <p className="text-center text-gray-500 py-8">
-              No tienes tokens creados
-            </p>
-          )}
-        </div>
       </Card>
     </div>
   );

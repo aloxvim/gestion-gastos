@@ -112,25 +112,6 @@ $router->get('/user/sessions', function () {
     $controller->getActiveSessions($userId);
 }, [AuthMiddleware::class]);
 
-// Tokens API
-$router->post('/user/api-tokens', function () {
-    $userId = $GLOBALS['current_user']['id'];
-    $controller = new UserController();
-    $controller->generateAPIToken($userId);
-}, [AuthMiddleware::class]);
-
-$router->get('/user/api-tokens', function () {
-    $userId = $GLOBALS['current_user']['id'];
-    $controller = new UserController();
-    $controller->listAPITokens($userId);
-}, [AuthMiddleware::class]);
-
-$router->delete('/user/api-tokens', function () {
-    $userId = $GLOBALS['current_user']['id'];
-    $controller = new UserController();
-    $controller->deleteAPIToken($userId);
-}, [AuthMiddleware::class]);
-
 // Cuentas
 $router->post('/accounts', function () {
     $userId = $GLOBALS['current_user']['id'];

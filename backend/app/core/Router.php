@@ -151,6 +151,13 @@ class Middleware
         $sesionModel = new \Models\Sesion();
         $session = $sesionModel->validate($token);
 
+        // Caducidad deslizante: cada petición autenticada alarga la sesión, de
+        // modo que solo caduca tras SESSION_LIFETIME sin usarla. Para no escribir
+        // en la BD en cada petición, se renueva como mucho cada 5 minutos.
+        if ($session && strtotime($session['expira_en']) - time() < SESSION_LIFETIME - 300) {
+            $sesionModel->renew($token);
+        }
+
         return $session;
     }
 }

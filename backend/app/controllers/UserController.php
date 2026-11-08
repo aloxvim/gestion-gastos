@@ -46,58 +46,74 @@ class UserController
     }
 
     /**
-     * Actualizar perfil
+     * Actualizar perfil: nombre de usuario y/o correo electrónico.
+     * Requiere la contraseña actual. La foto va por uploadProfilePhoto.
      */
-    public function updateProfile()
+    public function updateProfile($userId)
     {
-        $userId = $GLOBALS['current_user']['id'];
-
         try {
-            // Para PUT con multipart/form-data, parsear manualmente
-            $data = $_POST;
+            $data = json_decode(file_get_contents('php://input'), true) ?? [];
 
-            if (empty($data) && $_SERVER['REQUEST_METHOD'] === 'PUT') {
-                $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+            $user = $this->usuarioModel->findById($userId);
+            if (!$user) {
+                jsonError("Usuario no encontrado", 404);
+            }
 
-                if (strpos($contentType, 'multipart/form-data') !== false) {
-                    $data = $this->parseMultipartFormData();
-                } else {
-                    $data = json_decode(file_get_contents('php://input'), true) ?? [];
-                }
+            if (empty($data['contrasena_actual'])) {
+                jsonError("Debes confirmar tu contraseña actual", 400);
+            }
+            // 400 y no 401: un 401 haría que el frontend cerrara la sesión
+            if (!verifyPassword($data['contrasena_actual'], $user['contrasena'])) {
+                jsonError("La contraseña actual es incorrecta", 400);
             }
 
             $updateData = [];
 
-            // Procesar nombre de usuario si se proporciona
-            if (isset($data['nombre_usuario']) && !empty($data['nombre_usuario'])) {
+            if (isset($data['nombre_usuario'])) {
                 $nombreUsuario = sanitize($data['nombre_usuario']);
 
-                if (strlen($nombreUsuario) < 3) {
+                if (mb_strlen($nombreUsuario) < 3) {
                     jsonError("El nombre de usuario debe tener al menos 3 caracteres", 400);
                 }
-
-                // Verificar que el nombre de usuario no esté en uso
-                $existingUser = $this->userModel->findByUsername($nombreUsuario);
-                if ($existingUser && $existingUser['id'] != $userId) {
-                    jsonError("El nombre de usuario ya está en uso", 409);
+                if (mb_strlen($nombreUsuario) > 50) {
+                    jsonError("El nombre de usuario no puede tener más de 50 caracteres", 400);
                 }
-
-                $updateData['nombre_usuario'] = $nombreUsuario;
+                if ($nombreUsuario !== $user['nombre_usuario']) {
+                    $updateData['nombre_usuario'] = $nombreUsuario;
+                }
             }
 
-            // Procesar foto de perfil
-            if (isset($_FILES['foto_perfil']) && $_FILES['foto_perfil']['error'] === UPLOAD_ERR_OK) {
-                $updateData['foto_perfil'] = $_FILES['foto_perfil'];
+            if (isset($data['correo_electronico'])) {
+                $correo = trim($data['correo_electronico']);
+
+                if (!isValidEmail($correo)) {
+                    jsonError("El correo electrónico no es válido", 400);
+                }
+                if (mb_strlen($correo) > 200) {
+                    jsonError("El correo electrónico no puede tener más de 200 caracteres", 400);
+                }
+                if ($correo !== $user['correo_electronico']) {
+                    $updateData['correo_electronico'] = $correo;
+                }
             }
 
             if (empty($updateData)) {
-                jsonError("No hay datos para actualizar", 400);
+                jsonError("No has cambiado ningún dato", 400);
             }
 
-            $this->userModel->updateProfile($userId, $updateData);
+            // Usuario::update comprueba que el nombre y el correo no estén en uso
+            $this->usuarioModel->update($userId, $updateData);
 
-            // Obtener datos actualizados del usuario
-            $user = $this->userModel->findById($userId);
+            $cambios = [];
+            if (isset($updateData['nombre_usuario'])) {
+                $cambios[] = "su nombre de usuario (antes '{$user['nombre_usuario']}')";
+            }
+            if (isset($updateData['correo_electronico'])) {
+                $cambios[] = "su correo electrónico";
+            }
+            logAction($userId, 'ha cambiado ' . implode(' y ', $cambios));
+
+            $user = $this->usuarioModel->findById($userId);
 
             jsonSuccess("Perfil actualizado exitosamente", [
                 'user' => [
@@ -116,78 +132,6 @@ class UserController
     }
 
     /**
-     * Parsea multipart/form-data para peticiones PUT
-     */
-    private function parseMultipartFormData()
-    {
-        $data = [];
-        $input = file_get_contents('php://input');
-
-        if (empty($input)) {
-            return $data;
-        }
-
-        $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
-        preg_match('/boundary=(.*)$/', $contentType, $matches);
-
-        if (!isset($matches[1])) {
-            return $data;
-        }
-
-        $boundary = $matches[1];
-        $parts = explode('--' . $boundary, $input);
-        array_shift($parts);
-        array_pop($parts);
-
-        foreach ($parts as $part) {
-            if (trim($part) === '--' || empty(trim($part, "\r\n-"))) {
-                continue;
-            }
-
-            $parts_split = preg_split("/\r?\n\r?\n/", $part, 2);
-
-            if (count($parts_split) < 2) {
-                continue;
-            }
-
-            list($headers_block, $content) = $parts_split;
-
-            if (preg_match('/name="([^"]*)"/', $headers_block, $nameMatches)) {
-                $name = $nameMatches[1];
-
-                if (preg_match('/filename="([^"]*)"/', $headers_block, $fileMatches)) {
-                    $filename = $fileMatches[1];
-
-                    if (!empty($filename)) {
-                        $mimeType = 'application/octet-stream';
-                        if (preg_match('/Content-Type:\s*(.*)$/mi', $headers_block, $typeMatches)) {
-                            $mimeType = trim($typeMatches[1]);
-                        }
-
-                        $content = substr($content, 0, -2);
-                        $tmpPath = tempnam(sys_get_temp_dir(), 'php_upload_');
-                        file_put_contents($tmpPath, $content, LOCK_EX);
-
-                        if (file_exists($tmpPath)) {
-                            $_FILES[$name] = [
-                                'name' => $filename,
-                                'type' => $mimeType,
-                                'tmp_name' => $tmpPath,
-                                'error' => UPLOAD_ERR_OK,
-                                'size' => filesize($tmpPath)
-                            ];
-                        }
-                    }
-                } else {
-                    $data[$name] = rtrim($content, "\r\n");
-                }
-            }
-        }
-
-        return $data;
-    }
-
-    /**
      * Cambiar contraseña
      */
     public function changePassword($userId)
@@ -202,7 +146,7 @@ class UserController
             // Verificar contraseña actual
             $user = $this->usuarioModel->findById($userId);
             if (!verifyPassword($data['contrasena_actual'], $user['contrasena'])) {
-                jsonError("La contraseña actual es incorrecta", 401);
+                jsonError("La contraseña actual es incorrecta", 400); // no 401: cerraría la sesión
             }
 
             // Validar nueva contraseña
@@ -360,7 +304,7 @@ class UserController
 
             $user = $this->usuarioModel->findById($userId);
             if (!verifyPassword($data['contrasena'], $user['contrasena'])) {
-                jsonError("Contraseña incorrecta", 401);
+                jsonError("Contraseña incorrecta", 400); // no 401: cerraría la sesión
             }
 
             // Verificar confirmaciones

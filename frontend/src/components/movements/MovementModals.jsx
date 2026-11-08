@@ -5,7 +5,7 @@ import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { Select } from '../common/Select';
 import { Paperclip, Upload, X } from 'lucide-react';
-import { movementsAPI } from '../../services/api';
+import { movementsAPI, openAttachment } from '../../services/api';
 import toast from 'react-hot-toast';
 
 // Tamaño máximo de un backup a importar. Debe coincidir con upload_max_filesize
@@ -35,7 +35,6 @@ export const MovementModal = ({ isOpen, onClose, onSuccess, accounts, movement =
   });
   const [file, setFile] = useState(null);
   const [currentAttachment, setCurrentAttachment] = useState(null);
-  const BACKEND_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:8080';
   const isTransfer = formData.tipo === 'transferencia';
   // Movimiento que guarda el adjunto: él mismo, o su pareja si es la entrada de un "mover dinero"
   const attachmentMovementId = movement && !movement.adjunto && movement.contraparte_adjunto
@@ -302,14 +301,17 @@ export const MovementModal = ({ isOpen, onClose, onSuccess, accounts, movement =
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Paperclip size={18} className="text-gray-500" />
-                  <a
-                    href={`${BACKEND_URL}/uploads/movements/${currentAttachment}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openAttachment(attachmentMovementId).catch(() =>
+                        toast.error('No se pudo abrir el archivo adjunto')
+                      )
+                    }
                     className="text-sm text-primary-600 hover:text-primary-800 underline"
                   >
                     Ver archivo actual
-                  </a>
+                  </button>
                 </div>
                 <button
                   type="button"

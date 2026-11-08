@@ -669,6 +669,47 @@ class MovementController
     }
 
     /**
+     * Descargar el adjunto de un movimiento. Los adjuntos (tickets, facturas)
+     * no se sirven por /uploads, así que solo los ve su dueño con sesión.
+     * En la entrada de un "mover dinero" el adjunto está en la salida.
+     */
+    public function downloadAttachment($userId, $movimientoId)
+    {
+        $movimiento = $this->movimientoModel->findById($movimientoId);
+
+        if (!$movimiento) {
+            jsonError("Movimiento no encontrado", 404);
+        }
+
+        if ($movimiento['id_usuario'] != $userId) {
+            jsonError("No tienes permiso para ver este archivo", 403);
+        }
+
+        $archivo = $movimiento['adjunto'] ?: ($movimiento['contraparte_adjunto'] ?? null);
+        $ruta = $archivo ? UPLOADS_PATH . '/movements/' . basename($archivo) : null;
+
+        if (!$ruta || !is_file($ruta)) {
+            jsonError("Este movimiento no tiene archivo adjunto", 404);
+        }
+
+        // Tipo según el contenido; si no es uno permitido, se fuerza la descarga
+        $mimeType = detectMimeType($ruta);
+        $permitido = extensionForMime($mimeType) !== null;
+
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+
+        header('Content-Type: ' . ($permitido ? $mimeType : 'application/octet-stream'));
+        header('Content-Length: ' . filesize($ruta));
+        header('Content-Disposition: ' . ($permitido ? 'inline' : 'attachment') . '; filename="' . basename($ruta) . '"');
+        header('X-Content-Type-Options: nosniff');
+        header('Cache-Control: private, no-store');
+        readfile($ruta);
+        exit;
+    }
+
+    /**
      * Eliminar adjunto de un movimiento
      */
     public function deleteAttachment($userId, $movimientoId)

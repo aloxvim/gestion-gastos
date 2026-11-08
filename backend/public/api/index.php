@@ -223,6 +223,13 @@ $router->delete('/movements/:id', function ($id) {
     $controller->delete($userId, $id);
 }, [AuthMiddleware::class]);
 
+// Descargar el adjunto (solo su dueño; /uploads/movements no se sirve directamente)
+$router->get('/movements/:id/attachment', function ($id) {
+    $userId = $GLOBALS['current_user']['id'];
+    $controller = new MovementController();
+    $controller->downloadAttachment($userId, $id);
+}, [AuthMiddleware::class]);
+
 $router->delete('/movements/:id/attachment', function ($id) {
     $userId = $GLOBALS['current_user']['id'];
     $controller = new MovementController();

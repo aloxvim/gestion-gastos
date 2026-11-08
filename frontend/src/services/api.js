@@ -109,6 +109,7 @@ export const movementsAPI = {
   }),
   delete: (id) => api.delete(`/movements/${id}`),
   deleteAttachment: (id) => api.delete(`/movements/${id}/attachment`),
+  getAttachment: (id) => api.get(`/movements/${id}/attachment`, { responseType: 'blob' }),
   getStats: (params) => api.get('/movements/stats', { params }),
   exportCSV: (params) => api.get('/movements/export/csv', { 
     params,
@@ -156,3 +157,25 @@ export const adminAPI = {
 };
 
 export default api;
+
+// Abre el adjunto de un movimiento en una pestaña nueva. Los adjuntos ya no
+// son públicos: se descargan con el token de sesión y se muestran desde la
+// memoria del navegador. La pestaña se abre antes de la descarga porque, si
+// se abre después de un await, algunos navegadores (Safari en iOS) la bloquean.
+export const openAttachment = async (movementId) => {
+  const ventana = window.open('', '_blank');
+  try {
+    const response = await movementsAPI.getAttachment(movementId);
+    const url = URL.createObjectURL(response.data);
+    if (ventana) {
+      ventana.location.href = url;
+    } else {
+      window.location.href = url;
+    }
+    // Liberar la memoria cuando la pestaña ya lo ha cargado
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (error) {
+    ventana?.close();
+    throw error;
+  }
+};

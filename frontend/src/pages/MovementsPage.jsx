@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { movementsAPI, accountsAPI } from '../services/api';
+import { movementsAPI, accountsAPI, openAttachment } from '../services/api';
 import { Card } from '../components/common/Card';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Button } from '../components/common/Button';
@@ -35,16 +35,6 @@ import { formatMoney, formatDate, formatDateShort, getTransferAccounts } from '.
 import toast from 'react-hot-toast';
 
 export const MovementsPage = () => {
-  const getBackendUrl = () => {
-    if (import.meta.env.VITE_BACKEND_URL) {
-      return import.meta.env.VITE_BACKEND_URL;
-    }
-
-    const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:8082`;
-  };
-
-  const BACKEND_URL = getBackendUrl();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [movements, setMovements] = useState([]);
@@ -532,15 +522,18 @@ export const MovementsPage = () => {
                         </div>
                         {/* En un "mover dinero" el adjunto está en la salida (contraparte_adjunto desde la entrada) */}
                         {(movement.adjunto || movement.contraparte_adjunto) && (
-                          <a
-                            href={`${BACKEND_URL}/uploads/movements/${movement.adjunto || movement.contraparte_adjunto}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openAttachment(movement.id).catch(() =>
+                                toast.error('No se pudo abrir el archivo adjunto')
+                              )
+                            }
                             className="flex items-center gap-1 text-primary-600 hover:text-primary-800 mt-1 cursor-pointer"
                           >
                             <Paperclip size={14} />
                             <span className="text-xs underline">Ver archivo adjunto</span>
-                          </a>
+                          </button>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

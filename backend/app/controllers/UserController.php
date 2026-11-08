@@ -249,9 +249,7 @@ class UserController
 
             // Validar que sea una imagen
             $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-            $mimeType = finfo_file($finfo, $file['tmp_name']);
-            finfo_close($finfo);
+            $mimeType = detectMimeType($file['tmp_name']);
 
             if (!in_array($mimeType, $allowedTypes)) {
                 jsonError("Solo se permiten imágenes (JPG, PNG, GIF, WEBP)", 400);
@@ -271,8 +269,8 @@ class UserController
                 }
             }
 
-            // Guardar nueva foto
-            $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+            // Guardar nueva foto (extensión según el contenido, nunca la del nombre enviado)
+            $extension = extensionForMime($mimeType);
             $filename = 'profile_' . $userId . '_' . time() . '.' . $extension;
             $destination = UPLOADS_PATH . '/profiles/' . $filename;
 

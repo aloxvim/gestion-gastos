@@ -216,12 +216,42 @@ function getUploadError($field = 'file')
 }
 
 /**
- * Genera un nombre de archivo único
+ * Extensión que corresponde a un tipo MIME permitido para adjuntos, o null.
+ *
+ * La extensión con la que se guarda un archivo sale SIEMPRE de aquí, a partir
+ * del tipo detectado en su contenido, y nunca del nombre que manda el usuario:
+ * un "foto.php" con cabecera de imagen pasa la comprobación del tipo, y si se
+ * guardara como .php Apache lo ejecutaría al pedirlo por /uploads.
  */
-function generateUniqueFilename($originalName)
+function extensionForMime($mimeType)
 {
-    $extension = pathinfo($originalName, PATHINFO_EXTENSION);
-    return uniqid('file_', true) . '.' . $extension;
+    $extensiones = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/gif' => 'gif',
+        'image/webp' => 'webp',
+        'application/pdf' => 'pdf',
+    ];
+    return $extensiones[$mimeType] ?? null;
+}
+
+/**
+ * Tipo MIME real de un archivo según su contenido (no según su nombre)
+ */
+function detectMimeType($path)
+{
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeType = finfo_file($finfo, $path);
+    finfo_close($finfo);
+    return $mimeType;
+}
+
+/**
+ * Genera un nombre de archivo único con la extensión del tipo MIME indicado
+ */
+function generateUniqueFilename($mimeType)
+{
+    return uniqid('file_', true) . '.' . extensionForMime($mimeType);
 }
 
 /**

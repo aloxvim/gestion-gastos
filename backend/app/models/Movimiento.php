@@ -620,18 +620,15 @@ class Movimiento
         }
 
         // Validar tipo
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mimeType = finfo_file($finfo, $file['tmp_name']);
-        finfo_close($finfo);
-
+        $mimeType = detectMimeType($file['tmp_name']);
         $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
 
         if (!isValidFileType($mimeType, $extension)) {
             throw new Exception("Solo se permiten archivos PDF e imágenes (JPG, PNG, GIF, WEBP)");
         }
 
-        // Generar nombre único
-        $filename = generateUniqueFilename($file['name']);
+        // Generar nombre único (la extensión sale del tipo detectado)
+        $filename = generateUniqueFilename($mimeType);
         $destination = UPLOADS_PATH . '/movements/' . $filename;
 
         // Crear directorio si no existe
@@ -654,6 +651,45 @@ class Movimiento
                 }
                 @unlink($file['tmp_name']);
             }
+        }
+
+        return $filename;
+    }
+
+    /**
+     * Guarda un adjunto de un backup JSON ("data:<mime>;base64,<datos>") y
+     * devuelve el nombre del archivo, o null si el valor no tiene ese formato.
+     *
+     * El tipo se detecta en el contenido decodificado, sin fiarse del MIME
+     * declarado ni de la extensión de adjunto_nombre: el JSON lo puede editar
+     * cualquiera, y un "x.php" acabaría ejecutándose desde /uploads.
+     */
+    private function saveImportedAttachment($dataUri, $originalName = null)
+    {
+        if (!preg_match('/^data:[^;]+;base64,(.+)$/', $dataUri, $matches)) {
+            return null;
+        }
+
+        $fileContent = base64_decode($matches[1]);
+        if ($fileContent === false) {
+            throw new Exception("Error al decodificar adjunto");
+        }
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_buffer($finfo, $fileContent);
+        finfo_close($finfo);
+
+        $extension = extensionForMime($mimeType);
+        if ($extension === null) {
+            throw new Exception("Tipo de archivo no soportado: {$mimeType}");
+        }
+
+        // Se conserva el nombre original (sin su extensión) para reconocerlo
+        $base = preg_replace('/[^a-zA-Z0-9_-]/', '', pathinfo($originalName ?? '', PATHINFO_FILENAME));
+        $filename = uniqid() . '_' . time() . ($base !== '' ? '_' . substr($base, 0, 100) : '') . '.' . $extension;
+
+        if (file_put_contents(UPLOADS_PATH . '/movements/' . $filename, $fileContent) === false) {
+            throw new Exception("Error al guardar adjunto");
         }
 
         return $filename;
@@ -913,49 +949,9 @@ class Movimiento
                 // Procesar adjunto si existe en Base64
                 if (!empty($mov['adjunto_base64'])) {
                     try {
-                        // Extraer MIME type y datos
-                        if (preg_match('/^data:([^;]+);base64,(.+)$/', $mov['adjunto_base64'], $matches)) {
-                            $mimeType = $matches[1];
-                            $base64Data = $matches[2];
-                            $fileContent = base64_decode($base64Data);
-
-                            if ($fileContent === false) {
-                                throw new Exception("Error al decodificar adjunto");
-                            }
-
-                            // Determinar extensión
-                            $extension = '';
-                            switch ($mimeType) {
-                                case 'application/pdf':
-                                    $extension = 'pdf';
-                                    break;
-                                case 'image/jpeg':
-                                    $extension = 'jpg';
-                                    break;
-                                case 'image/png':
-                                    $extension = 'png';
-                                    break;
-                                case 'image/gif':
-                                    $extension = 'gif';
-                                    break;
-                                case 'image/webp':
-                                    $extension = 'webp';
-                                    break;
-                                default:
-                                    throw new Exception("Tipo de archivo no soportado: {$mimeType}");
-                            }
-
-                            // Generar nombre único
-                            $originalName = $mov['adjunto_nombre'] ?? "archivo.{$extension}";
-                            $filename = uniqid() . '_' . time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $originalName);
-                            $filepath = UPLOADS_PATH . '/movements/' . $filename;
-
-                            // Guardar archivo
-                            if (file_put_contents($filepath, $fileContent) === false) {
-                                throw new Exception("Error al guardar adjunto");
-                            }
-
-                            $dataToInsert['adjunto'] = $filename;
+                        $adjunto = $this->saveImportedAttachment($mov['adjunto_base64'], $mov['adjunto_nombre'] ?? null);
+                        if ($adjunto) {
+                            $dataToInsert['adjunto'] = $adjunto;
                         }
                     } catch (Exception $e) {
                         // Si falla el adjunto, importar sin él pero registrar error
@@ -1041,45 +1037,9 @@ class Movimiento
                 // Procesar adjunto si existe
                 if (!empty($mov['adjunto_base64'])) {
                     try {
-                        if (preg_match('/^data:([^;]+);base64,(.+)$/', $mov['adjunto_base64'], $matches)) {
-                            $mimeType = $matches[1];
-                            $base64Data = $matches[2];
-                            $fileContent = base64_decode($base64Data);
-
-                            if ($fileContent === false) {
-                                throw new Exception("Error al decodificar adjunto");
-                            }
-
-                            $extension = '';
-                            switch ($mimeType) {
-                                case 'application/pdf':
-                                    $extension = 'pdf';
-                                    break;
-                                case 'image/jpeg':
-                                    $extension = 'jpg';
-                                    break;
-                                case 'image/png':
-                                    $extension = 'png';
-                                    break;
-                                case 'image/gif':
-                                    $extension = 'gif';
-                                    break;
-                                case 'image/webp':
-                                    $extension = 'webp';
-                                    break;
-                                default:
-                                    throw new Exception("Tipo de archivo no soportado");
-                            }
-
-                            $originalName = $mov['adjunto_nombre'] ?? "archivo.{$extension}";
-                            $filename = uniqid() . '_' . time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $originalName);
-                            $filepath = UPLOADS_PATH . '/movements/' . $filename;
-
-                            if (file_put_contents($filepath, $fileContent) === false) {
-                                throw new Exception("Error al guardar adjunto");
-                            }
-
-                            $dataToInsert['adjunto'] = $filename;
+                        $adjunto = $this->saveImportedAttachment($mov['adjunto_base64'], $mov['adjunto_nombre'] ?? null);
+                        if ($adjunto) {
+                            $dataToInsert['adjunto'] = $adjunto;
                         }
                     } catch (Exception $e) {
                         $errors[] = "Línea " . ($index + 1) . " - Advertencia: " . $e->getMessage();
